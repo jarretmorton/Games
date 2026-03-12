@@ -18,92 +18,20 @@ window.addEventListener('keyup', (e) => {
 
 // ── Mobile Touch Controls ──
 
-const ALL_DIRS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-
 function initTouchControls() {
-    const dpad = document.getElementById('dpad');
-    const actionBtns = document.querySelectorAll('[data-key]');
-    if (!dpad && actionBtns.length === 0) return;
+    const buttons = document.querySelectorAll('[data-key]');
+    if (buttons.length === 0) return;
 
-    // ── D-Pad: track touches by identifier, resolve which dirs are active ──
-    const dpadTouches = new Map(); // touchId -> Set of dir keys
+    // Track active touches per button to handle multi-touch correctly
+    const activeTouches = new Map();
 
-    function getDirsAtPoint(x, y) {
-        const el = document.elementFromPoint(x, y);
-        if (!el || !el.dataset.dirs) return null;
-        return el.dataset.dirs.split(',');
-    }
-
-    function applyDpadState() {
-        // Collect all active dirs from all touches
-        const activeDirs = new Set();
-        for (const dirs of dpadTouches.values()) {
-            for (const d of dirs) activeDirs.add(d);
-        }
-        // Press newly active, release newly inactive
-        for (const dir of ALL_DIRS) {
-            if (activeDirs.has(dir) && !keys[dir]) {
-                keys[dir] = true;
-                justPressed[dir] = true;
-            } else if (!activeDirs.has(dir) && keys[dir]) {
-                keys[dir] = false;
-                justReleased[dir] = true;
-            }
-        }
-        // Update visual pressed state on buttons
-        for (const el of dpad.querySelectorAll('[data-dirs]')) {
-            const elDirs = el.dataset.dirs.split(',');
-            const isActive = elDirs.some(d => activeDirs.has(d));
-            el.classList.toggle('pressed', isActive);
-        }
-    }
-
-    dpad.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        for (const touch of e.changedTouches) {
-            const dirs = getDirsAtPoint(touch.clientX, touch.clientY);
-            dpadTouches.set(touch.identifier, dirs || []);
-        }
-        applyDpadState();
-    }, { passive: false });
-
-    dpad.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        for (const touch of e.changedTouches) {
-            if (dpadTouches.has(touch.identifier)) {
-                const dirs = getDirsAtPoint(touch.clientX, touch.clientY);
-                dpadTouches.set(touch.identifier, dirs || []);
-            }
-        }
-        applyDpadState();
-    }, { passive: false });
-
-    dpad.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        for (const touch of e.changedTouches) {
-            dpadTouches.delete(touch.identifier);
-        }
-        applyDpadState();
-    }, { passive: false });
-
-    dpad.addEventListener('touchcancel', (e) => {
-        e.preventDefault();
-        for (const touch of e.changedTouches) {
-            dpadTouches.delete(touch.identifier);
-        }
-        applyDpadState();
-    }, { passive: false });
-
-    // ── Action buttons (A, B, SELECT, START): simple per-button touch ──
-    const btnTouches = new Map(); // touchId -> btn element
-
-    for (const btn of actionBtns) {
+    for (const btn of buttons) {
         const keyCode = btn.dataset.key;
 
         btn.addEventListener('touchstart', (e) => {
             e.preventDefault();
             for (const touch of e.changedTouches) {
-                btnTouches.set(touch.identifier, btn);
+                activeTouches.set(touch.identifier, btn);
             }
             if (!keys[keyCode]) {
                 justPressed[keyCode] = true;
@@ -115,10 +43,11 @@ function initTouchControls() {
         btn.addEventListener('touchend', (e) => {
             e.preventDefault();
             for (const touch of e.changedTouches) {
-                btnTouches.delete(touch.identifier);
+                activeTouches.delete(touch.identifier);
             }
+            // Only release if no other touches on this button
             let stillTouched = false;
-            for (const [, b] of btnTouches) {
+            for (const [, b] of activeTouches) {
                 if (b === btn) { stillTouched = true; break; }
             }
             if (!stillTouched) {
@@ -131,7 +60,7 @@ function initTouchControls() {
         btn.addEventListener('touchcancel', (e) => {
             e.preventDefault();
             for (const touch of e.changedTouches) {
-                btnTouches.delete(touch.identifier);
+                activeTouches.delete(touch.identifier);
             }
             keys[keyCode] = false;
             justReleased[keyCode] = true;
