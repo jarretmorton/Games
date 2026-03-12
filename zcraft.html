@@ -2,12 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>ZCraft</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
+
+    <!-- Mobile Touch Controls -->
+    <div id="mobile-controls">
+        <!-- D-Pad (left side) -->
+        <div id="dpad">
+            <button class="dpad-btn" id="btn-up" data-key="ArrowUp">&#9650;</button>
+            <button class="dpad-btn" id="btn-left" data-key="ArrowLeft">&#9664;</button>
+            <div class="dpad-center"></div>
+            <button class="dpad-btn" id="btn-right" data-key="ArrowRight">&#9654;</button>
+            <button class="dpad-btn" id="btn-down" data-key="ArrowDown">&#9660;</button>
+        </div>
+
+        <!-- Action Buttons (right side) -->
+        <div id="action-buttons">
+            <button class="action-btn" id="btn-action" data-key="KeyZ">A</button>
+            <button class="action-btn" id="btn-cancel" data-key="KeyX">B</button>
+            <button class="action-btn small-btn" id="btn-inventory" data-key="KeyI">INV</button>
+            <button class="action-btn small-btn" id="btn-start" data-key="Enter">START</button>
+        </div>
+    </div>
+
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
