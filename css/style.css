@@ -11,9 +11,155 @@ body {
     align-items: center;
     height: 100vh;
     overflow: hidden;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 #gameCanvas {
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+}
+
+/* ── Mobile Touch Controls ── */
+
+#mobile-controls {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Show on touch devices */
+@media (pointer: coarse) {
+    #mobile-controls {
+        display: block;
+    }
+}
+
+/* D-Pad */
+#dpad {
+    position: absolute;
+    bottom: 24px;
+    left: 20px;
+    display: grid;
+    grid-template-columns: 52px 52px 52px;
+    grid-template-rows: 52px 52px 52px;
+    gap: 2px;
+}
+
+.dpad-btn {
+    pointer-events: auto;
+    background: rgba(255, 255, 255, 0.15);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+}
+
+.dpad-btn:active, .dpad-btn.pressed {
+    background: rgba(255, 255, 255, 0.35);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+#btn-up    { grid-column: 2; grid-row: 1; }
+#btn-left  { grid-column: 1; grid-row: 2; }
+#btn-right { grid-column: 3; grid-row: 2; }
+#btn-down  { grid-column: 2; grid-row: 3; }
+
+.dpad-center {
+    grid-column: 2;
+    grid-row: 2;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+/* Action Buttons */
+#action-buttons {
+    position: absolute;
+    bottom: 24px;
+    right: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 130px;
+    justify-content: center;
+    align-items: flex-end;
+}
+
+.action-btn {
+    pointer-events: auto;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 16px;
+    font-weight: bold;
+    font-family: monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+}
+
+.action-btn:active, .action-btn.pressed {
+    background: rgba(255, 255, 255, 0.35);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+#btn-action {
+    background: rgba(76, 175, 80, 0.3);
+    border-color: rgba(76, 175, 80, 0.6);
+}
+
+#btn-action:active, #btn-action.pressed {
+    background: rgba(76, 175, 80, 0.55);
+}
+
+#btn-cancel {
+    background: rgba(244, 67, 54, 0.3);
+    border-color: rgba(244, 67, 54, 0.6);
+}
+
+#btn-cancel:active, #btn-cancel.pressed {
+    background: rgba(244, 67, 54, 0.55);
+}
+
+.small-btn {
+    width: 50px;
+    height: 32px;
+    border-radius: 16px;
+    font-size: 10px;
+}
+
+#btn-inventory {
+    background: rgba(33, 150, 243, 0.3);
+    border-color: rgba(33, 150, 243, 0.6);
+}
+
+#btn-inventory:active, #btn-inventory.pressed {
+    background: rgba(33, 150, 243, 0.55);
+}
+
+#btn-start {
+    background: rgba(255, 193, 7, 0.3);
+    border-color: rgba(255, 193, 7, 0.6);
+}
+
+#btn-start:active, #btn-start.pressed {
+    background: rgba(255, 193, 7, 0.55);
 }
