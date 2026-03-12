@@ -1,0 +1,84 @@
+// NPC definitions with positions, dialogue, and palettes
+
+export const npcData = [
+    {
+        id: 'farmer',
+        name: 'Farmer',
+        tileX: 8, tileY: 10,
+        facing: 'down',
+        palette: {
+            hair: '#5A3520',
+            skin: '#C4956A',
+            eye: '#333333',
+            nose: '#B0845A',
+            robe: '#8B6914',
+            shoe: '#444444',
+        },
+        dialogue: [
+            "Welcome to Craftville, traveler!",
+            "Watch out for the mine shaft south of town...",
+            "I heard strange sounds from below ground last night.",
+            "Break some grass or pots to find emeralds!",
+        ]
+    },
+    {
+        id: 'librarian',
+        name: 'Librarian',
+        tileX: 24, tileY: 10,
+        facing: 'down',
+        palette: {
+            hair: '#CCCCCC',
+            skin: '#C4956A',
+            eye: '#333333',
+            nose: '#B0845A',
+            robe: '#EEEEEE',
+            shoe: '#444444',
+        },
+        dialogue: [
+            "The ancient texts speak of four pillars...",
+            "Dark stones must rest upon the marks of power.",
+            "Try checking the puzzle area south of the shop.",
+            "The old mine entrance will only open when the pillars are set.",
+        ]
+    },
+    {
+        id: 'blacksmith',
+        name: 'Blacksmith',
+        tileX: 8, tileY: 13,
+        facing: 'up',
+        palette: {
+            hair: '#1A1A1A',
+            skin: '#8B6B4A',
+            eye: '#333333',
+            nose: '#7A5A3A',
+            robe: '#555555',
+            shoe: '#333333',
+        },
+        dialogue: [
+            "I've got the finest tools in town!",
+            "Visit my shop just behind me.",
+            "You'll need a good sword for what's down there.",
+            "Gather emeralds and come see what I've got!",
+        ]
+    },
+    {
+        id: 'wanderer',
+        name: 'Wanderer',
+        tileX: 30, tileY: 18,
+        facing: 'left',
+        palette: {
+            hair: '#2D5A1E',
+            skin: '#C4956A',
+            eye: '#333333',
+            nose: '#B0845A',
+            robe: '#4A7628',
+            shoe: '#3D2D20',
+        },
+        dialogue: [
+            "I saw strange markings on the stones near the old mine...",
+            "Push the dark blocks onto the glowing plates.",
+            "If you get stuck, check the stone tablet to reset.",
+            "I also heard there is something golden hidden in town...",
+        ]
+    },
+];

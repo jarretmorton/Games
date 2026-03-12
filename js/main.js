@@ -1,0 +1,769 @@
+import { initRenderer, clearScreen, getCtx, VIRTUAL_WIDTH, VIRTUAL_HEIGHT } from './rendering/renderer.js';
+import { input } from './engine/input.js';
+import { gameState, States } from './state/gameState.js';
+import { camera } from './engine/camera.js';
+import { renderMap, updateTileAnimations } from './world/tilemap.js';
+import { townMap, SPAWN_X, SPAWN_Y, breakablePositions } from './world/townMap.js';
+import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y } from './world/dungeonMap.js';
+import { player } from './entities/player.js';
+import { characters } from './data/characters.js';
+import { drawCharacter, drawItem } from './rendering/sprites.js';
+import { createNPCs } from './entities/npc.js';
+import { npcData } from './data/npcs.js';
+import { dialogue } from './rendering/dialogue.js';
+import { createBreakables } from './entities/breakable.js';
+import { renderHUD } from './rendering/hud.js';
+import { inventory } from './systems/inventory.js';
+import { shop } from './systems/shop.js';
+import { puzzle } from './systems/puzzle.js';
+import { checkAttackHits } from './systems/combat.js';
+import { Enemy } from './entities/enemy.js';
+import { TILE_SIZE, tileProps, T } from './data/tileTypes.js';
+import { aabbOverlap } from './engine/collision.js';
+import { itemDefs } from './data/items.js';
+
+const TICK_RATE = 1000 / 60;
+let lastTime = 0;
+let accumulator = 0;
+let ctx;
+
+let titleTimer = 0;
+let selectedChar = 0;
+
+// Game entities
+let npcs = [];
+let breakables = [];
+let drops = [];
+let enemies = [];
+let invSelectedIndex = 0;
+
+// State flags
+let inDungeon = false;
+let puzzleSolvedAnimation = 0;
+let dungeonCleared = false;
+
+// Transition effect
+let transition = { active: false, timer: 0, maxTime: 30, callback: null };
+
+function init() {
+    ctx = initRenderer();
+    requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+    npcs = createNPCs(npcData);
+    breakables = createBreakables(breakablePositions);
+    drops = [];
+    enemies = [];
+    inventory.reset();
+    puzzle.init();
+    inDungeon = false;
+    dungeonCleared = false;
+    puzzleSolvedAnimation = 0;
+}
+
+function gameLoop(timestamp) {
+    const delta = timestamp - lastTime;
+    lastTime = timestamp;
+    accumulator += delta;
+
+    while (accumulator >= TICK_RATE) {
+        update();
+        input.clear();
+        accumulator -= TICK_RATE;
+    }
+
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+function update() {
+    titleTimer++;
+
+    // Handle screen transitions
+    if (transition.active) {
+        transition.timer++;
+        if (transition.timer >= transition.maxTime) {
+            transition.active = false;
+            if (transition.callback) transition.callback();
+        }
+        return;
+    }
+
+    switch (gameState.current) {
+        case States.TITLE:
+            if (input.start || input.action) gameState.change(States.CHARACTER_SELECT);
+            break;
+
+        case States.CHARACTER_SELECT:
+            if (input.leftPressed) selectedChar = (selectedChar - 1 + characters.length) % characters.length;
+            if (input.rightPressed) selectedChar = (selectedChar + 1) % characters.length;
+            if (input.start || input.action) {
+                const chosen = characters[selectedChar];
+                player.init(SPAWN_X, SPAWN_Y, chosen.palette);
+                player.characterId = chosen.id;
+                startGame();
+                gameState.change(States.PLAYING);
+            }
+            break;
+
+        case States.PLAYING:
+            if (inDungeon) updateDungeon();
+            else updatePlaying();
+            break;
+
+        case States.DIALOGUE:
+            dialogue.update();
+            if (input.action) {
+                if (!dialogue.advance()) gameState.change(States.PLAYING);
+            }
+            break;
+
+        case States.INVENTORY:
+            updateInventory();
+            break;
+
+        case States.SHOP:
+            updateShop();
+            break;
+    }
+}
+
+function updatePlaying() {
+    updateTileAnimations();
+
+    // Build solid entity list
+    const solidEntities = [];
+    for (const npc of npcs) {
+        solidEntities.push({ x: npc.collX, y: npc.collY, w: npc.w, h: npc.h, solid: true });
+    }
+    for (const b of breakables) {
+        if (b.active && b.solid) {
+            solidEntities.push({ x: b.x + 4, y: b.y + 4, w: b.w - 8, h: b.h - 8, solid: true });
+        }
+    }
+    // Add puzzle blocks as solid
+    for (const ent of puzzle.getSolidEntities()) {
+        solidEntities.push(ent);
+    }
+
+    player.update(townMap, solidEntities);
+    for (const npc of npcs) npc.update();
+    for (const b of breakables) b.update();
+
+    // Puzzle update
+    const justSolved = puzzle.update();
+    if (justSolved && puzzleSolvedAnimation === 0) {
+        puzzleSolvedAnimation = 1;
+        camera.shake(3, 30);
+        openDungeonEntrance();
+        dialogue.start('', ['The ground rumbles... The dungeon entrance has opened!']);
+        gameState.change(States.DIALOGUE);
+    }
+
+    // Drops update
+    updateDrops();
+
+    camera.follow(player.x, player.y, townMap[0].length, townMap.length);
+    camera.update();
+
+    // Action button
+    if (input.action) {
+        // First check if near an NPC or interactable (takes priority)
+        const nearInteract = checkNearInteract();
+
+        if (nearInteract) {
+            tryInteract();
+        } else {
+            // Try pushing a block first (works with or without weapon)
+            const pushed = puzzle.tryPush(player.x, player.y, player.facing, townMap);
+            if (!pushed) {
+                if (player.attack()) {
+                    const hitbox = player.getAttackHitbox();
+                    if (hitbox) {
+                        // Hit breakables
+                        for (const b of breakables) {
+                            if (b.active && !b.destroying) {
+                                if (aabbOverlap(hitbox.x, hitbox.y, hitbox.w, hitbox.h,
+                                               b.x + 4, b.y + 4, b.w - 8, b.h - 8)) {
+                                    const drop = b.hit();
+                                    if (drop) spawnDrop(b.x + TILE_SIZE / 2, b.y + TILE_SIZE / 2, drop);
+                                }
+                            }
+                        }
+                        // Hit enemies (weapon only)
+                        if (player.equippedItem && player.equippedItem.type === 'weapon') {
+                            const hits = checkAttackHits(hitbox, enemies);
+                            for (const enemy of hits) {
+                                enemy.takeDamage(player.equippedItem.damage, player.x, player.y);
+                            }
+                        }
+                    }
+                } else {
+                    tryInteract();
+                }
+            }
+        }
+    }
+
+    // Check dungeon entrance
+    if (puzzle.solved) {
+        const dungeonCol = 5, dungeonRow = 24;
+        const playerCol = Math.floor(player.x / TILE_SIZE);
+        const playerRow = Math.floor(player.y / TILE_SIZE);
+        if (playerCol === dungeonCol && playerRow === dungeonRow) {
+            enterDungeon();
+        }
+    }
+
+    if (input.inventory) {
+        invSelectedIndex = 0;
+        gameState.change(States.INVENTORY);
+    }
+}
+
+function updateDungeon() {
+    updateTileAnimations();
+
+    const solidEntities = [];
+    player.update(dungeonMap, solidEntities);
+
+    // Enemy update and combat
+    for (const enemy of enemies) {
+        if (!enemy.active) continue;
+        enemy.update(player.x, player.y, dungeonMap);
+
+        // Enemy damages player
+        if (enemy.canDamagePlayer(player.x, player.y)) {
+            player.takeDamage(enemy.damage);
+        }
+    }
+
+    // Player attacks enemy
+    if (input.action && player.equippedItem && player.equippedItem.type === 'weapon') {
+        if (player.attack()) {
+            const hitbox = player.getAttackHitbox();
+            if (hitbox) {
+                const hits = checkAttackHits(hitbox, enemies);
+                for (const enemy of hits) {
+                    enemy.takeDamage(player.equippedItem.damage, player.x, player.y);
+                    if (enemy.hp <= 0 && !dungeonCleared) {
+                        dungeonCleared = true;
+                        // Drop rewards after death animation
+                        setTimeout(() => {
+                            player.emeralds += 10;
+                            inventory.add(itemDefs.diamond);
+                            player.hasDiamond = true;
+                            dialogue.start('', ['The zombie has been defeated!', 'You found a Diamond and 10 emeralds!']);
+                            gameState.change(States.DIALOGUE);
+                        }, 400);
+                    }
+                }
+            }
+        }
+    }
+
+    updateDrops();
+
+    camera.follow(player.x, player.y, dungeonMap[0].length, dungeonMap.length);
+    camera.update();
+
+    // Exit dungeon
+    const playerRow = Math.floor(player.y / TILE_SIZE);
+    if (playerRow >= dungeonMap.length - 1) {
+        exitDungeon();
+    }
+
+    if (input.inventory) {
+        invSelectedIndex = 0;
+        gameState.change(States.INVENTORY);
+    }
+}
+
+function enterDungeon() {
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inDungeon = true;
+        player.x = DUNGEON_SPAWN_X;
+        player.y = DUNGEON_SPAWN_Y;
+        camera.x = 0;
+        camera.y = 0;
+        if (!dungeonCleared) {
+            enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'zombie')];
+        } else {
+            enemies = [];
+        }
+    };
+}
+
+function exitDungeon() {
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inDungeon = false;
+        // Place player just south of dungeon entrance (row 25 is open stone floor after puzzle solved)
+        player.x = 5 * TILE_SIZE + TILE_SIZE / 2;
+        player.y = 25 * TILE_SIZE + TILE_SIZE / 2;
+    };
+}
+
+function openDungeonEntrance() {
+    // Change the blocked tiles to open entrance
+    townMap[23][4] = T.STONE_FLOOR;
+    townMap[23][5] = T.STONE_FLOOR;
+    townMap[23][6] = T.STONE_FLOOR;
+    townMap[24][4] = T.STONE_FLOOR;
+    townMap[24][5] = T.DUNGEON_ENTRANCE;
+    townMap[24][6] = T.STONE_FLOOR;
+    townMap[25][4] = T.STONE_FLOOR;
+    townMap[25][5] = T.STONE_FLOOR;
+    townMap[25][6] = T.STONE_FLOOR;
+}
+
+function updateDrops() {
+    for (const drop of drops) {
+        drop.timer++;
+        drop.y += drop.vy;
+        drop.vy += 0.1;
+        if (drop.vy > 0) drop.vy = 0;
+
+        if (drop.timer > 10) {
+            const dist = Math.abs(player.x - drop.x) + Math.abs(player.y - drop.y);
+            if (dist < 20) {
+                if (drop.type === 'emerald') player.emeralds += drop.amount;
+                else if (drop.type === 'golden_blueberry') {
+                    inventory.add(itemDefs.golden_blueberry);
+                    player.hasBlueberry = true;
+                    dialogue.start('', ['You found the Golden Enchanted Blueberry!']);
+                    gameState.change(States.DIALOGUE);
+                }
+                drop.active = false;
+            }
+        }
+    }
+    drops = drops.filter(d => d.active);
+}
+
+function spawnDrop(x, y, drop) {
+    drops.push({
+        x: x + (Math.random() - 0.5) * 16,
+        y: y - 8,
+        vy: -2,
+        type: drop.type,
+        amount: drop.amount || 0,
+        timer: 0,
+        active: true,
+    });
+}
+
+function checkNearInteract() {
+    const point = player.getInteractPoint();
+    // Check NPCs
+    for (const npc of npcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) return true;
+    }
+    // Check interactable tiles
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    if (row >= 0 && row < townMap.length && col >= 0 && col < townMap[0].length) {
+        const props = tileProps[townMap[row][col]];
+        if (props?.interact) return true;
+    }
+    return false;
+}
+
+function tryInteract() {
+    const point = player.getInteractPoint();
+
+    for (const npc of npcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) {
+            dialogue.start(npc.name, [npc.getNextDialogue()]);
+            gameState.change(States.DIALOGUE);
+            return;
+        }
+    }
+
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    const currentMap = inDungeon ? dungeonMap : townMap;
+    if (row >= 0 && row < currentMap.length && col >= 0 && col < currentMap[0].length) {
+        const tileId = currentMap[row][col];
+        const props = tileProps[tileId];
+
+        if (props?.interact === 'shop') {
+            shop.open();
+            gameState.change(States.SHOP);
+        } else if (props?.interact === 'tablet') {
+            dialogue.start('Stone Tablet', ['Place the dark stones upon the marks of power.', 'The path below shall open.']);
+            gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'bookshelf') {
+            dialogue.start('Book', ['The four pillars of obsidian hold the key...', 'Push them onto the glowing plates to unseal the mine.']);
+            gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'sign') {
+            dialogue.start('Sign', ["Blacksmith's Shop - Finest weapons in Craftville!"]);
+            gameState.change(States.DIALOGUE);
+        }
+    }
+}
+
+function updateInventory() {
+    const items = inventory.items;
+    if (items.length === 0) {
+        if (input.inventory || input.cancel) gameState.change(States.PLAYING);
+        return;
+    }
+    if (input.upPressed) invSelectedIndex = Math.max(0, invSelectedIndex - 1);
+    if (input.downPressed) invSelectedIndex = Math.min(items.length - 1, invSelectedIndex + 1);
+    if (input.action) {
+        const item = items[invSelectedIndex];
+        if (item && (item.type === 'weapon' || item.type === 'armor')) inventory.equip(item.id);
+    }
+    if (input.inventory || input.cancel) gameState.change(States.PLAYING);
+}
+
+function updateShop() {
+    shop.update();
+    if (input.upPressed) shop.moveSelection(-1);
+    if (input.downPressed) shop.moveSelection(1);
+    if (input.action) shop.buy();
+    if (input.cancel) gameState.change(States.PLAYING);
+}
+
+// ── RENDER ──
+
+function render() {
+    clearScreen();
+
+    switch (gameState.current) {
+        case States.TITLE: renderTitle(); break;
+        case States.CHARACTER_SELECT: renderCharacterSelect(); break;
+        case States.PLAYING:
+        case States.DIALOGUE:
+        case States.INVENTORY:
+        case States.SHOP:
+            if (inDungeon) renderDungeonScene();
+            else renderTownScene();
+            if (gameState.current === States.DIALOGUE) dialogue.render(ctx);
+            if (gameState.current === States.INVENTORY) renderInventoryUI();
+            if (gameState.current === States.SHOP) renderShopUI();
+            break;
+    }
+
+    // Transition overlay
+    if (transition.active) {
+        const progress = transition.timer / transition.maxTime;
+        const alpha = progress < 0.5 ? progress * 2 : 2 - progress * 2;
+        ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+        ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    }
+}
+
+function renderTitle() {
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 30; i++) {
+        const seed = i * 7919;
+        const x = (seed * 13) % VIRTUAL_WIDTH;
+        const y = (seed * 17) % (VIRTUAL_HEIGHT - 60);
+        if (Math.sin(titleTimer * 0.05 + i) > 0.3) ctx.fillRect(x, y, 1, 1);
+    }
+
+    ctx.fillStyle = '#2d5a1e';
+    ctx.fillRect(0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, 40);
+    ctx.fillStyle = '#5b8731';
+    ctx.fillRect(0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, 2);
+
+    drawTitle(ctx, 50);
+    ctx.fillStyle = '#aaa';
+    drawSmallText(ctx, 'A Minecraft Adventure', VIRTUAL_WIDTH / 2 - 63, 90);
+
+    if (Math.floor(titleTimer / 30) % 2 === 0) {
+        ctx.fillStyle = '#fff';
+        drawSmallText(ctx, 'Press ENTER to Start', VIRTUAL_WIDTH / 2 - 60, VIRTUAL_HEIGHT - 60);
+    }
+}
+
+function renderCharacterSelect() {
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+    ctx.fillStyle = '#fff';
+    drawSmallText(ctx, 'Choose Your Character', VIRTUAL_WIDTH / 2 - 63, 20);
+
+    const boxSize = 44, gap = 8;
+    const totalWidth = characters.length * boxSize + (characters.length - 1) * gap;
+    const startX = Math.floor(VIRTUAL_WIDTH / 2 - totalWidth / 2);
+
+    for (let i = 0; i < characters.length; i++) {
+        const char = characters[i];
+        const x = startX + i * (boxSize + gap);
+        const y = 60;
+
+        if (i === selectedChar) {
+            ctx.fillStyle = '#ffcc00';
+            ctx.fillRect(x - 2, y - 2, boxSize + 4, boxSize + 4);
+        }
+        ctx.fillStyle = '#222';
+        ctx.fillRect(x, y, boxSize, boxSize);
+        drawCharacter(ctx, x + boxSize / 2, y + boxSize / 2 + 6, 'down', 0, char.palette, 2);
+
+        ctx.fillStyle = i === selectedChar ? '#ffcc00' : '#aaa';
+        drawSmallText(ctx, char.name, x + boxSize / 2 - char.name.length * 3, y + boxSize + 6);
+    }
+
+    if (Math.floor(titleTimer / 30) % 2 === 0) {
+        ctx.fillStyle = '#fff';
+        drawSmallText(ctx, 'Press ENTER to Confirm', VIRTUAL_WIDTH / 2 - 66, VIRTUAL_HEIGHT - 30);
+    }
+}
+
+function renderTownScene() {
+    const camX = camera.getDrawX();
+    const camY = camera.getDrawY();
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    renderMap(ctx, townMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
+
+    // Collect entities for Y-sort
+    const entities = [];
+    for (const b of breakables) {
+        if (b.active) entities.push({ y: b.y + TILE_SIZE, render: () => b.render(ctx) });
+    }
+    for (const npc of npcs) {
+        entities.push({ y: npc.y, render: () => npc.render(ctx) });
+    }
+    entities.push({ y: player.y, render: () => player.render(ctx) });
+
+    // Push blocks
+    entities.push({ y: 999, render: () => puzzle.render(ctx) });
+
+    // Drops
+    for (const drop of drops) {
+        if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
+    }
+
+    entities.sort((a, b) => a.y - b.y);
+    for (const ent of entities) ent.render();
+
+    renderMap(ctx, townMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 2);
+
+    ctx.restore();
+    renderHUD(ctx, player);
+}
+
+function renderDungeonScene() {
+    const camX = camera.getDrawX();
+    const camY = camera.getDrawY();
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    renderMap(ctx, dungeonMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
+
+    const entities = [];
+    entities.push({ y: player.y, render: () => player.render(ctx) });
+    for (const enemy of enemies) {
+        if (enemy.active) entities.push({ y: enemy.y, render: () => enemy.render(ctx) });
+    }
+    for (const drop of drops) {
+        if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
+    }
+
+    entities.sort((a, b) => a.y - b.y);
+    for (const ent of entities) ent.render();
+
+    ctx.restore();
+    renderHUD(ctx, player);
+
+    // Dungeon label
+    ctx.fillStyle = '#888';
+    drawSmallText(ctx, 'The Mine', VIRTUAL_WIDTH / 2 - 24, 2);
+}
+
+function renderDrop(ctx, drop) {
+    if (drop.type === 'emerald') {
+        ctx.fillStyle = '#2D8B46';
+        ctx.fillRect(drop.x - 3, drop.y - 2, 6, 1);
+        ctx.fillRect(drop.x - 4, drop.y - 1, 8, 3);
+        ctx.fillRect(drop.x - 3, drop.y + 2, 6, 1);
+        ctx.fillStyle = '#5FD394';
+        ctx.fillRect(drop.x - 2, drop.y - 1, 4, 2);
+    } else if (drop.type === 'golden_blueberry') {
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(drop.x - 4, drop.y - 4, 8, 8);
+        ctx.fillStyle = '#4444CC';
+        ctx.fillRect(drop.x - 3, drop.y - 3, 6, 6);
+    }
+}
+
+function renderInventoryUI() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+    const px = 40, py = 20, pw = VIRTUAL_WIDTH - 80, ph = VIRTUAL_HEIGHT - 40;
+    ctx.fillStyle = '#1A1A2E';
+    ctx.fillRect(px, py, pw, ph);
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px, py, pw, ph);
+
+    ctx.fillStyle = '#FFF';
+    drawSmallText(ctx, 'Inventory', px + pw / 2 - 27, py + 6);
+
+    const items = inventory.items;
+    if (items.length === 0) {
+        ctx.fillStyle = '#666';
+        drawSmallText(ctx, 'Empty', px + pw / 2 - 15, py + ph / 2 - 3);
+    } else {
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const y = py + 20 + i * 22;
+            if (i === invSelectedIndex) {
+                ctx.fillStyle = '#333355';
+                ctx.fillRect(px + 4, y - 2, pw - 8, 20);
+            }
+            drawItem(ctx, px + 8, y, item.spriteId, 2);
+            ctx.fillStyle = i === invSelectedIndex ? '#FFCC00' : '#CCC';
+            drawSmallText(ctx, item.name, px + 28, y + 4);
+            if (player.equippedItem?.id === item.id) {
+                ctx.fillStyle = '#4CAF50';
+                drawSmallText(ctx, 'E', px + pw - 16, y + 4);
+            }
+        }
+    }
+    ctx.fillStyle = '#555';
+    drawSmallText(ctx, 'Z:Equip  I:Close', px + 8, py + ph - 12);
+}
+
+function renderShopUI() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+    const px = 30, py = 15, pw = VIRTUAL_WIDTH - 60, ph = VIRTUAL_HEIGHT - 30;
+    ctx.fillStyle = '#1A1A2E';
+    ctx.fillRect(px, py, pw, ph);
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px, py, pw, ph);
+
+    ctx.fillStyle = '#FFF';
+    drawSmallText(ctx, "Blacksmith's Shop", px + pw / 2 - 51, py + 6);
+    ctx.fillStyle = '#3CB371';
+    drawSmallText(ctx, 'Emeralds: ' + player.emeralds, px + pw - 72, py + 6);
+
+    for (let i = 0; i < shop.items.length; i++) {
+        const item = shop.items[i];
+        const y = py + 22 + i * 24;
+        if (i === shop.selectedIndex) {
+            ctx.fillStyle = '#333355';
+            ctx.fillRect(px + 4, y - 2, pw - 8, 22);
+        }
+        drawItem(ctx, px + 8, y, item.spriteId, 2);
+        const owned = inventory.has(item.id);
+        ctx.fillStyle = owned ? '#666' : (i === shop.selectedIndex ? '#FFCC00' : '#CCC');
+        drawSmallText(ctx, item.name, px + 28, y + 2);
+        if (owned) {
+            ctx.fillStyle = '#4CAF50';
+            drawSmallText(ctx, 'Owned', px + pw - 40, y + 2);
+        } else {
+            ctx.fillStyle = player.emeralds >= item.cost ? '#3CB371' : '#CC3333';
+            drawSmallText(ctx, String(item.cost) + ' em', px + pw - 36, y + 2);
+        }
+        ctx.fillStyle = '#888';
+        if (item.damage) drawSmallText(ctx, 'Dmg:' + item.damage, px + 28, y + 10);
+        if (item.defense) drawSmallText(ctx, 'Def:' + item.defense, px + 28, y + 10);
+    }
+
+    if (shop.messageTimer > 0) {
+        ctx.fillStyle = '#FFCC00';
+        drawSmallText(ctx, shop.message, px + pw / 2 - shop.message.length * 3, py + ph - 24);
+    }
+    ctx.fillStyle = '#555';
+    drawSmallText(ctx, 'Z:Buy  X:Leave', px + 8, py + ph - 12);
+}
+
+// ── PIXEL FONT ──
+
+const FONT = {
+    'A': [0x7C,0xC6,0xFE,0xC6,0xC6,0x00], 'B': [0xFC,0xC6,0xFC,0xC6,0xFC,0x00],
+    'C': [0x7E,0xC0,0xC0,0xC0,0x7E,0x00], 'D': [0xFC,0xC6,0xC6,0xC6,0xFC,0x00],
+    'E': [0xFE,0xC0,0xFC,0xC0,0xFE,0x00], 'F': [0xFE,0xC0,0xFC,0xC0,0xC0,0x00],
+    'G': [0x7E,0xC0,0xCE,0xC6,0x7E,0x00], 'H': [0xC6,0xC6,0xFE,0xC6,0xC6,0x00],
+    'I': [0x7E,0x18,0x18,0x18,0x7E,0x00], 'J': [0x3E,0x06,0x06,0xC6,0x7C,0x00],
+    'K': [0xC6,0xCC,0xF8,0xCC,0xC6,0x00], 'L': [0xC0,0xC0,0xC0,0xC0,0xFE,0x00],
+    'M': [0xC6,0xEE,0xFE,0xD6,0xC6,0x00], 'N': [0xC6,0xE6,0xF6,0xDE,0xCE,0x00],
+    'O': [0x7C,0xC6,0xC6,0xC6,0x7C,0x00], 'P': [0xFC,0xC6,0xFC,0xC0,0xC0,0x00],
+    'Q': [0x7C,0xC6,0xC6,0xCE,0x7E,0x00], 'R': [0xFC,0xC6,0xFC,0xCC,0xC6,0x00],
+    'S': [0x7E,0xC0,0x7C,0x06,0xFC,0x00], 'T': [0xFE,0x30,0x30,0x30,0x30,0x00],
+    'U': [0xC6,0xC6,0xC6,0xC6,0x7C,0x00], 'V': [0xC6,0xC6,0xC6,0x6C,0x38,0x00],
+    'W': [0xC6,0xD6,0xFE,0xEE,0xC6,0x00], 'X': [0xC6,0x6C,0x38,0x6C,0xC6,0x00],
+    'Y': [0xC6,0x6C,0x38,0x18,0x18,0x00], 'Z': [0xFE,0x0C,0x38,0x60,0xFE,0x00],
+    '0': [0x7C,0xCE,0xD6,0xE6,0x7C,0x00], '1': [0x38,0x78,0x18,0x18,0x7E,0x00],
+    '2': [0x7C,0x06,0x7C,0xC0,0xFE,0x00], '3': [0x7C,0x06,0x3C,0x06,0x7C,0x00],
+    '4': [0xC6,0xC6,0xFE,0x06,0x06,0x00], '5': [0xFE,0xC0,0xFC,0x06,0xFC,0x00],
+    '6': [0x7E,0xC0,0xFC,0xC6,0x7C,0x00], '7': [0xFE,0x06,0x0C,0x18,0x18,0x00],
+    '8': [0x7C,0xC6,0x7C,0xC6,0x7C,0x00], '9': [0x7C,0xC6,0x7E,0x06,0x7C,0x00],
+    ' ': [0x00,0x00,0x00,0x00,0x00,0x00], '-': [0x00,0x00,0x7C,0x00,0x00,0x00],
+    '.': [0x00,0x00,0x00,0x00,0x18,0x00], '!': [0x18,0x18,0x18,0x00,0x18,0x00],
+    '?': [0x7C,0x06,0x3C,0x00,0x30,0x00], ':': [0x00,0x18,0x00,0x18,0x00,0x00],
+    ',': [0x00,0x00,0x00,0x18,0x30,0x00], "'": [0x18,0x18,0x00,0x00,0x00,0x00],
+    '/': [0x06,0x0C,0x18,0x30,0x60,0x00], '(': [0x0C,0x18,0x18,0x18,0x0C,0x00],
+    ')': [0x30,0x18,0x18,0x18,0x30,0x00], '+': [0x00,0x18,0x7E,0x18,0x00,0x00],
+};
+
+export function drawSmallText(ctx, text, x, y, color) {
+    if (color) ctx.fillStyle = color;
+    const upper = text.toUpperCase();
+    for (let c = 0; c < upper.length; c++) {
+        const charData = FONT[upper[c]];
+        if (!charData) continue;
+        for (let row = 0; row < 6; row++) {
+            let bits = charData[row];
+            for (let col = 0; col < 8; col++) {
+                if (bits & (0x80 >> col)) {
+                    ctx.fillRect(x + c * 6 + col * 0.75, y + row, 1, 1);
+                }
+            }
+        }
+    }
+}
+
+function drawTitle(ctx, y) {
+    const letters = 'ZCRAFT';
+    const blockSize = 4;
+    const letterWidth = 6 * blockSize;
+    const totalWidth = letters.length * letterWidth + (letters.length - 1) * 4;
+    let x = Math.floor(VIRTUAL_WIDTH / 2 - totalWidth / 2);
+
+    for (let i = 0; i < letters.length; i++) {
+        const charData = FONT[letters[i]];
+        if (!charData) continue;
+        for (let row = 0; row < 6; row++) {
+            let bits = charData[row];
+            for (let col = 0; col < 8; col++) {
+                if (bits & (0x80 >> col)) {
+                    const px = x + col * blockSize * 0.75;
+                    const py = y + row * blockSize;
+                    ctx.fillStyle = '#1a4a0e';
+                    ctx.fillRect(px + 1, py + 1, blockSize - 1, blockSize - 1);
+                    ctx.fillStyle = '#4CAF50';
+                    ctx.fillRect(px, py, blockSize - 1, blockSize - 1);
+                    ctx.fillStyle = '#6ECF72';
+                    ctx.fillRect(px, py, 1, blockSize - 2);
+                }
+            }
+        }
+        x += letterWidth + 4;
+    }
+}
+
+init();

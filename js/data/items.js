@@ -1,0 +1,62 @@
+export const itemDefs = {
+    wooden_sword: {
+        id: 'wooden_sword',
+        name: 'Wooden Sword',
+        type: 'weapon',
+        damage: 1,
+        cost: 5,
+        spriteId: 'wooden_sword',
+    },
+    stone_sword: {
+        id: 'stone_sword',
+        name: 'Stone Sword',
+        type: 'weapon',
+        damage: 2,
+        cost: 15,
+        spriteId: 'stone_sword',
+    },
+    iron_sword: {
+        id: 'iron_sword',
+        name: 'Iron Sword',
+        type: 'weapon',
+        damage: 3,
+        cost: 30,
+        spriteId: 'iron_sword',
+    },
+    bow: {
+        id: 'bow',
+        name: 'Bow',
+        type: 'weapon',
+        damage: 1,
+        cost: 20,
+        spriteId: 'bow',
+    },
+    shield: {
+        id: 'shield',
+        name: 'Shield',
+        type: 'armor',
+        defense: 1,
+        cost: 10,
+        spriteId: 'shield',
+    },
+    golden_blueberry: {
+        id: 'golden_blueberry',
+        name: 'Golden Blueberry',
+        type: 'key_item',
+        spriteId: 'golden_blueberry',
+    },
+    diamond: {
+        id: 'diamond',
+        name: 'Diamond',
+        type: 'key_item',
+        spriteId: 'diamond',
+    },
+};
+
+export const shopItems = [
+    itemDefs.wooden_sword,
+    itemDefs.stone_sword,
+    itemDefs.iron_sword,
+    itemDefs.bow,
+    itemDefs.shield,
+];

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python \"C:\\\\Users\\\\Jarret\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\49363243-01c8-4428-bc70-bb1d8ed21f2e\\\\41d83f1c-ddf5-4006-9440-6de41fe94c0f\\\\skills\\\\docx\\\\scripts\\\\office\\\\unpack.py\" \"Plan for a game.docx\" /tmp/plan_unpacked/)",
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(python3 -m pip install defusedxml)",
+      "Bash(python -m pip install defusedxml)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(where npx:*)",
+      "Bash(where python:*)",
+      "Bash(npm install:*)"
+    ]
+  }
+}
