@@ -9,23 +9,31 @@
 <body>
     <canvas id="gameCanvas"></canvas>
 
-    <!-- Mobile Touch Controls -->
+    <!-- Mobile Touch Controls (Game Boy layout) -->
     <div id="mobile-controls">
-        <!-- D-Pad (left side) -->
+        <!-- D-Pad (bottom-left) with diagonal corners -->
         <div id="dpad">
-            <button class="dpad-btn" id="btn-up" data-key="ArrowUp">&#9650;</button>
-            <button class="dpad-btn" id="btn-left" data-key="ArrowLeft">&#9664;</button>
+            <div class="dpad-corner" id="corner-ul" data-dirs="ArrowUp,ArrowLeft"></div>
+            <button class="dpad-btn" id="btn-up" data-dirs="ArrowUp">&#9650;</button>
+            <div class="dpad-corner" id="corner-ur" data-dirs="ArrowUp,ArrowRight"></div>
+            <button class="dpad-btn" id="btn-left" data-dirs="ArrowLeft">&#9664;</button>
             <div class="dpad-center"></div>
-            <button class="dpad-btn" id="btn-right" data-key="ArrowRight">&#9654;</button>
-            <button class="dpad-btn" id="btn-down" data-key="ArrowDown">&#9660;</button>
+            <button class="dpad-btn" id="btn-right" data-dirs="ArrowRight">&#9654;</button>
+            <div class="dpad-corner" id="corner-dl" data-dirs="ArrowDown,ArrowLeft"></div>
+            <button class="dpad-btn" id="btn-down" data-dirs="ArrowDown">&#9660;</button>
+            <div class="dpad-corner" id="corner-dr" data-dirs="ArrowDown,ArrowRight"></div>
         </div>
 
-        <!-- Action Buttons (right side) -->
-        <div id="action-buttons">
-            <button class="action-btn" id="btn-action" data-key="KeyZ">A</button>
+        <!-- SELECT / START (centered row) -->
+        <div id="center-buttons">
+            <button class="center-btn" id="btn-inventory" data-key="KeyI">SELECT</button>
+            <button class="center-btn" id="btn-start" data-key="Enter">START</button>
+        </div>
+
+        <!-- A / B Buttons (bottom-right, diagonal like Game Boy) -->
+        <div id="ab-buttons">
             <button class="action-btn" id="btn-cancel" data-key="KeyX">B</button>
-            <button class="action-btn small-btn" id="btn-inventory" data-key="KeyI">INV</button>
-            <button class="action-btn small-btn" id="btn-start" data-key="Enter">START</button>
+            <button class="action-btn" id="btn-action" data-key="KeyZ">A</button>
         </div>
     </div>
 
