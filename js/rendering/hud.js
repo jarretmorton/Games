@@ -24,7 +24,7 @@ export function renderHUD(ctx, player) {
     ctx.fillStyle = '#FFF';
     drawSmallText(ctx, String(player.emeralds), 16, 19);
 
-    // Equipped item (top-right)
+    // Primary equipped item - A slot (top-right)
     const itemBoxX = VIRTUAL_WIDTH - 24;
     const itemBoxY = 4;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -36,6 +36,27 @@ export function renderHUD(ctx, player) {
     if (player.equippedItem) {
         drawItem(ctx, itemBoxX, itemBoxY, player.equippedItem.spriteId, 2);
     }
+
+    // Slot label
+    ctx.fillStyle = '#888';
+    drawSmallText(ctx, 'A', itemBoxX + 6, itemBoxY + 18);
+
+    // Secondary equipped item - B slot (below A slot)
+    const secBoxX = VIRTUAL_WIDTH - 24;
+    const secBoxY = itemBoxY + 24;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(secBoxX - 2, secBoxY - 2, 20, 20);
+    ctx.strokeStyle = player.blocking ? '#4CAF50' : '#555';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(secBoxX - 2, secBoxY - 2, 20, 20);
+
+    if (player.secondaryItem) {
+        drawItem(ctx, secBoxX, secBoxY, player.secondaryItem.spriteId, 2);
+    }
+
+    // Slot label
+    ctx.fillStyle = '#888';
+    drawSmallText(ctx, 'B', secBoxX + 6, secBoxY + 18);
 }
 
 function drawHeart(ctx, x, y, state) {

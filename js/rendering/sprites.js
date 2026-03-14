@@ -396,6 +396,202 @@ export function drawSwordSwing(ctx, x, y, facing, frame, palette) {
     ctx.restore();
 }
 
+// Draw bow drawback animation (pulling string before firing)
+export function drawBowDraw(ctx, x, y, facing, frame, totalFrames) {
+    const progress = 1 - (frame / totalFrames); // 0→1 as animation plays
+    const bowColor = '#6B4226';
+    const stringColor = '#CCCCCC';
+    const arrowColor = '#8B6914';
+    const arrowTip = '#AAAAAA';
+
+    // Bow position relative to character
+    let bx, by;
+    switch (facing) {
+        case 'down':  bx = x; by = y + 10; break;
+        case 'up':    bx = x; by = y - 14; break;
+        case 'left':  bx = x - 14; by = y - 2; break;
+        case 'right': bx = x + 14; by = y - 2; break;
+    }
+
+    ctx.save();
+    ctx.translate(Math.round(bx), Math.round(by));
+
+    // Drawback distance increases with progress, then snaps at release
+    const drawback = progress < 0.85 ? progress / 0.85 : 1;
+    const pullDist = drawback * 6;
+
+    if (facing === 'down' || facing === 'up') {
+        const dir = facing === 'down' ? 1 : -1;
+        // Bow arc (vertical orientation)
+        ctx.fillStyle = bowColor;
+        ctx.fillRect(-1, -6, 2, 12);  // bow body
+        ctx.fillRect(-2, -7, 1, 2);   // bow tip top
+        ctx.fillRect(-2, 5, 1, 2);    // bow tip bottom
+        ctx.fillRect(0, -7, 1, 2);
+        ctx.fillRect(0, 5, 1, 2);
+
+        // Bowstring (pulled back)
+        ctx.strokeStyle = stringColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-1, -6);
+        ctx.lineTo(-1 - pullDist * dir, 0);
+        ctx.lineTo(-1, 6);
+        ctx.stroke();
+
+        // Arrow (on the string, pointing in facing direction)
+        if (progress < 0.9) {
+            ctx.fillStyle = arrowColor;
+            ctx.fillRect(-1 - pullDist * dir, -1, 10 * dir, 2);
+            // Arrow tip
+            ctx.fillStyle = arrowTip;
+            const tipX = -1 - pullDist * dir + 10 * dir;
+            ctx.fillRect(tipX, -2, dir * 2, 4);
+        }
+    } else {
+        const dir = facing === 'right' ? 1 : -1;
+        // Bow arc (horizontal orientation)
+        ctx.fillStyle = bowColor;
+        ctx.fillRect(-6, -1, 12, 2);  // bow body
+        ctx.fillRect(-7, -2, 2, 1);   // bow tip left
+        ctx.fillRect(5, -2, 2, 1);    // bow tip right
+        ctx.fillRect(-7, 1, 2, 1);
+        ctx.fillRect(5, 1, 2, 1);
+
+        // Bowstring (pulled back)
+        ctx.strokeStyle = stringColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-6, -1);
+        ctx.lineTo(0, -1 + pullDist * dir);
+        ctx.lineTo(6, -1);
+        ctx.stroke();
+
+        // Arrow on string
+        if (progress < 0.9) {
+            ctx.fillStyle = arrowColor;
+            ctx.fillRect(-1, -1 + pullDist * dir - 5 * dir, 2, 10 * dir);
+            // Arrow tip
+            ctx.fillStyle = arrowTip;
+            ctx.fillRect(-2, -1 + pullDist * dir - 5 * dir - 2 * dir, 4, dir * 2);
+        }
+    }
+
+    ctx.restore();
+}
+
+// Draw a flying arrow projectile
+export function drawArrow(ctx, x, y, facing) {
+    const shaftColor = '#8B6914';
+    const tipColor = '#CCCCCC';
+    const fletchColor = '#CC3333';
+
+    ctx.save();
+    ctx.translate(Math.round(x), Math.round(y));
+
+    switch (facing) {
+        case 'down':
+            ctx.fillStyle = fletchColor;
+            ctx.fillRect(-1, -8, 3, 3);
+            ctx.fillStyle = shaftColor;
+            ctx.fillRect(0, -6, 1, 10);
+            ctx.fillStyle = tipColor;
+            ctx.fillRect(-1, 4, 3, 2);
+            ctx.fillRect(0, 6, 1, 1);
+            break;
+        case 'up':
+            ctx.fillStyle = fletchColor;
+            ctx.fillRect(-1, 5, 3, 3);
+            ctx.fillStyle = shaftColor;
+            ctx.fillRect(0, -4, 1, 10);
+            ctx.fillStyle = tipColor;
+            ctx.fillRect(-1, -6, 3, 2);
+            ctx.fillRect(0, -7, 1, 1);
+            break;
+        case 'left':
+            ctx.fillStyle = fletchColor;
+            ctx.fillRect(5, -1, 3, 3);
+            ctx.fillStyle = shaftColor;
+            ctx.fillRect(-4, 0, 10, 1);
+            ctx.fillStyle = tipColor;
+            ctx.fillRect(-6, -1, 2, 3);
+            ctx.fillRect(-7, 0, 1, 1);
+            break;
+        case 'right':
+            ctx.fillStyle = fletchColor;
+            ctx.fillRect(-8, -1, 3, 3);
+            ctx.fillStyle = shaftColor;
+            ctx.fillRect(-6, 0, 10, 1);
+            ctx.fillStyle = tipColor;
+            ctx.fillRect(4, -1, 2, 3);
+            ctx.fillRect(6, 0, 1, 1);
+            break;
+    }
+
+    ctx.restore();
+}
+
+// Draw shield blocking in front of the character
+export function drawShieldBlock(ctx, x, y, facing, blockTimer) {
+    const shieldBody = '#4CAF50';
+    const shieldHi = '#6ECF72';
+    const shieldFrame = '#666666';
+    const shieldDark = '#388E3C';
+
+    // Subtle pulse when first raised
+    const pulse = blockTimer < 6 ? (6 - blockTimer) * 0.3 : 0;
+
+    let sx, sy;
+    switch (facing) {
+        case 'down':  sx = x; sy = y + 8; break;
+        case 'up':    sx = x; sy = y - 14; break;
+        case 'left':  sx = x - 12; sy = y - 2; break;
+        case 'right': sx = x + 12; sy = y - 2; break;
+    }
+
+    ctx.save();
+    ctx.translate(Math.round(sx), Math.round(sy));
+
+    if (facing === 'down' || facing === 'up') {
+        // Shield face-on (wider)
+        const w = 12 + pulse, h = 10 + pulse;
+        ctx.fillStyle = shieldFrame;
+        ctx.fillRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2);
+        ctx.fillStyle = shieldBody;
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+        ctx.fillStyle = shieldHi;
+        ctx.fillRect(-w / 2 + 2, -h / 2 + 1, w - 4, 3);
+        ctx.fillStyle = shieldDark;
+        ctx.fillRect(-w / 2 + 1, h / 2 - 3, w - 2, 2);
+        // Emblem (small diamond)
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(-1, -2, 3, 1);
+        ctx.fillRect(-2, -1, 5, 1);
+        ctx.fillRect(-1, 0, 3, 1);
+    } else {
+        // Shield side-on (narrow and tall)
+        const w = 6 + pulse, h = 14 + pulse;
+        ctx.fillStyle = shieldFrame;
+        ctx.fillRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2);
+        ctx.fillStyle = shieldBody;
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+        ctx.fillStyle = shieldHi;
+        ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, 4);
+        ctx.fillStyle = shieldDark;
+        ctx.fillRect(-w / 2 + 1, h / 2 - 3, w - 2, 2);
+    }
+
+    // Flash effect on raise
+    if (blockTimer < 4) {
+        ctx.globalAlpha = 0.4 * (4 - blockTimer) / 4;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(-8, -8, 16, 16);
+        ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+}
+
 // ── NPC SPRITES (12x16, Link's Awakening style robed villagers) ──
 
 // NPC palette keys

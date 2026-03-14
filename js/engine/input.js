@@ -154,7 +154,9 @@ export const input = {
     get left() { return this.isDown('ArrowLeft') || this.isDown('KeyA'); },
     get right() { return this.isDown('ArrowRight') || this.isDown('KeyD'); },
     get action() { return this.isPressed('KeyZ') || this.isPressed('Space'); },
-    get cancel() { return this.isPressed('KeyX'); },
+    get secondary() { return this.isPressed('KeyB') || this.isPressed('AltLeft') || this.isPressed('AltRight'); },
+    get secondaryHeld() { return this.isDown('KeyB') || this.isDown('AltLeft') || this.isDown('AltRight'); },
+    get cancel() { return this.isPressed('KeyX') || this.isPressed('KeyB'); },
     get inventory() { return this.isPressed('KeyI') || this.isPressed('KeyE'); },
     get start() { return this.isPressed('Enter'); },
 
