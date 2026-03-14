@@ -7,7 +7,8 @@ export const States = {
     SHOP: 'SHOP',
     DUNGEON: 'DUNGEON',
     PUZZLE_COMPLETE: 'PUZZLE_COMPLETE',
-    PAUSED: 'PAUSED'
+    PAUSED: 'PAUSED',
+    DEAD: 'DEAD'
 };
 
 export const gameState = {
