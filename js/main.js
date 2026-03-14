@@ -7,7 +7,7 @@ import { townMap, SPAWN_X, SPAWN_Y, breakablePositions } from './world/townMap.j
 import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y } from './world/dungeonMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
-import { drawCharacter, drawItem } from './rendering/sprites.js';
+import { drawCharacter, drawItem, drawArrow } from './rendering/sprites.js';
 import { createNPCs } from './entities/npc.js';
 import { npcData } from './data/npcs.js';
 import { dialogue } from './rendering/dialogue.js';
@@ -16,14 +16,14 @@ import { renderHUD } from './rendering/hud.js';
 import { inventory } from './systems/inventory.js';
 import { shop } from './systems/shop.js';
 import { puzzle } from './systems/puzzle.js';
-import { checkAttackHits } from './systems/combat.js';
+import { checkAttackHits, applyKnockback } from './systems/combat.js';
 import { Enemy } from './entities/enemy.js';
 import { TILE_SIZE, tileProps, T } from './data/tileTypes.js';
 import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -38,6 +38,7 @@ let npcs = [];
 let breakables = [];
 let drops = [];
 let enemies = [];
+let arrows = [];
 let invSelectedIndex = 0;
 
 // State flags
@@ -65,6 +66,7 @@ function startGame() {
     breakables = createBreakables(breakablePositions);
     drops = [];
     enemies = [];
+    arrows = [];
     inventory.reset();
     puzzle.init();
     inDungeon = false;
@@ -185,8 +187,22 @@ function updatePlaying() {
     // Drops update
     updateDrops();
 
+    // Arrow projectile update
+    updateArrows(townMap);
+
+    // Check if bow just released an arrow
+    if (player.bowReleased) {
+        player.bowReleased = false;
+        spawnArrow();
+    }
+
     camera.follow(player.x, player.y, townMap[0].length, townMap.length);
     camera.update();
+
+    // Secondary action (B/ALT) - shield block
+    if (input.secondary && !player.blocking) {
+        player.startBlock();
+    }
 
     // Action button
     if (input.action) {
@@ -256,12 +272,24 @@ function updateDungeon() {
 
         // Enemy damages player
         if (enemy.canDamagePlayer(player.x, player.y)) {
-            player.takeDamage(enemy.damage);
+            const blocked = player.takeDamage(enemy.damage);
+            if (blocked) {
+                // Shield blocked the attack - bounce enemy back hard
+                applyKnockback(enemy, player.x, player.y, 8, 10);
+                enemy.hurtTimer = 10;
+                enemy.state = 'hurt';
+                camera.shake(2, 8);
+            }
         }
     }
 
     // Check if player died
     if (checkPlayerDeath()) return;
+
+    // Secondary action (B/ALT) - shield block
+    if (input.secondary && !player.blocking) {
+        player.startBlock();
+    }
 
     // Player attacks enemy
     if (input.action && player.equippedItem && player.equippedItem.type === 'weapon') {
@@ -285,6 +313,15 @@ function updateDungeon() {
                 }
             }
         }
+    }
+
+    // Arrow projectile update
+    updateArrows(dungeonMap);
+
+    // Check if bow just released an arrow
+    if (player.bowReleased) {
+        player.bowReleased = false;
+        spawnArrow();
     }
 
     updateDrops();
@@ -413,6 +450,91 @@ function updateDrops() {
         }
     }
     drops = drops.filter(d => d.active);
+}
+
+function spawnArrow() {
+    const speed = 3.5;
+    let vx = 0, vy = 0;
+    switch (player.facing) {
+        case 'up':    vy = -speed; break;
+        case 'down':  vy = speed; break;
+        case 'left':  vx = -speed; break;
+        case 'right': vx = speed; break;
+    }
+    arrows.push({
+        x: player.x,
+        y: player.y,
+        vx,
+        vy,
+        facing: player.facing,
+        damage: player.equippedItem ? player.equippedItem.damage : 1,
+        active: true,
+        life: 120, // max lifetime in frames
+    });
+}
+
+function updateArrows(map) {
+    for (const arrow of arrows) {
+        if (!arrow.active) continue;
+
+        arrow.x += arrow.vx;
+        arrow.y += arrow.vy;
+        arrow.life--;
+
+        if (arrow.life <= 0) {
+            arrow.active = false;
+            continue;
+        }
+
+        // Check collision with map (solid tiles)
+        const col = Math.floor(arrow.x / TILE_SIZE);
+        const row = Math.floor(arrow.y / TILE_SIZE);
+        if (row < 0 || row >= map.length || col < 0 || col >= map[0].length) {
+            arrow.active = false;
+            continue;
+        }
+        const props = tileProps[map[row][col]];
+        if (props && props.solid) {
+            arrow.active = false;
+            continue;
+        }
+
+        // Check collision with enemies
+        for (const enemy of enemies) {
+            if (!enemy.active || enemy.state === 'dead') continue;
+            const ex = enemy.x - enemy.w / 2;
+            const ey = enemy.y - enemy.h / 2;
+            if (aabbOverlap(arrow.x - 3, arrow.y - 3, 6, 6, ex, ey, enemy.w, enemy.h)) {
+                enemy.takeDamage(arrow.damage, arrow.x, arrow.y);
+                arrow.active = false;
+
+                // Check for dungeon clear
+                if (enemy.hp <= 0 && !dungeonCleared && inDungeon) {
+                    dungeonCleared = true;
+                    setTimeout(() => {
+                        player.emeralds += 10;
+                        inventory.add(itemDefs.diamond);
+                        player.hasDiamond = true;
+                        dialogue.start('', ['The zombie has been defeated!', 'You found a Diamond and 10 emeralds!']);
+                        gameState.change(States.DIALOGUE);
+                    }, 400);
+                }
+                break;
+            }
+        }
+
+        // Check collision with breakables
+        for (const b of breakables) {
+            if (!b.active || b.destroying) continue;
+            if (aabbOverlap(arrow.x - 3, arrow.y - 3, 6, 6, b.x + 4, b.y + 4, b.w - 8, b.h - 8)) {
+                const drop = b.hit();
+                if (drop) spawnDrop(b.x + TILE_SIZE / 2, b.y + TILE_SIZE / 2, drop);
+                arrow.active = false;
+                break;
+            }
+        }
+    }
+    arrows = arrows.filter(a => a.active);
 }
 
 function spawnDrop(x, y, drop) {
@@ -635,6 +757,10 @@ function renderTownScene() {
     for (const drop of drops) {
         if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
     }
+    // Arrows
+    for (const arrow of arrows) {
+        if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
 
     entities.sort((a, b) => a.y - b.y);
     for (const ent of entities) ent.render();
@@ -661,6 +787,10 @@ function renderDungeonScene() {
     }
     for (const drop of drops) {
         if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
+    }
+    // Arrows
+    for (const arrow of arrows) {
+        if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
     }
 
     entities.sort((a, b) => a.y - b.y);
@@ -721,7 +851,10 @@ function renderInventoryUI() {
             drawSmallText(ctx, item.name, px + 28, y + 4);
             if (player.equippedItem?.id === item.id) {
                 ctx.fillStyle = '#4CAF50';
-                drawSmallText(ctx, 'E', px + pw - 16, y + 4);
+                drawSmallText(ctx, 'A', px + pw - 16, y + 4);
+            } else if (player.secondaryItem?.id === item.id) {
+                ctx.fillStyle = '#4488CC';
+                drawSmallText(ctx, 'B', px + pw - 16, y + 4);
             }
         }
     }

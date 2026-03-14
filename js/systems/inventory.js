@@ -31,7 +31,13 @@ export const inventory = {
 
     equip(itemId) {
         const item = this.items.find(i => i.id === itemId);
-        if (item && (item.type === 'weapon' || item.type === 'armor')) {
+        if (!item) return false;
+
+        // Armor goes to secondary slot, weapons to primary
+        if (item.type === 'armor') {
+            player.secondaryItem = item;
+            return true;
+        } else if (item.type === 'weapon') {
             player.equippedItem = item;
             return true;
         }
@@ -42,5 +48,6 @@ export const inventory = {
         this.items = [];
         player.inventory = this.items;
         player.equippedItem = null;
+        player.secondaryItem = null;
     }
 };
