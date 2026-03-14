@@ -1,4 +1,4 @@
-// Programmatic pixel art sprite system
+// Programmatic pixel art sprite system (Link's Awakening style)
 // All sprites are drawn using fillRect calls with pixel grid arrays
 
 // Draw a pixel grid at position (x, y) with given scale
@@ -20,147 +20,200 @@ export function drawPixelGrid(ctx, x, y, scale, grid) {
     }
 }
 
-// Character pixel template (8 wide x 12 tall)
-// Uses palette keys that get resolved to colors per character
+// ── CHARACTER SPRITES (12 wide x 16 tall, Link's Awakening style) ──
+// Shorthand palette keys for compact grid definitions
+const _ = 0;
+const ol = 'ol';      // dark outline
+const hr = 'hair';
+const hh = 'hairHi';  // hair highlight
+const sk = 'skin';
+const ew = 'eyeW';    // eye white
+const ey = 'eye';     // eye/iris
+const mo = 'mouth';
+const sh = 'shirt';
+const si = 'shirtHi'; // shirt highlight
+const bl = 'belt';
+const pn = 'pants';
+const bo = 'shoe';
+
+// ── DOWN FACING ──
 const CHAR_DOWN_0 = [
-    [0, 0, 'hair','hair','hair','hair', 0, 0],
-    [0, 'hair','hair','hair','hair','hair','hair', 0],
-    [0, 'skin','skin','skin','skin','skin','skin', 0],
-    [0, 'skin','eye','skin','skin','eye','skin', 0],
-    [0, 'skin','skin','mouth','mouth','skin','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 'skin','shirt','shirt','shirt','shirt','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 0, 'pants','pants','pants','pants', 0, 0],
-    [0, 0, 'pants', 0, 0, 'pants', 0, 0],
-    [0, 0, 'shoe', 0, 0, 'shoe', 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,  _,  _, ol, ol, ol, ol, ol, ol,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hh, hr, hr, hr, hr, hh, hr, ol,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, sk, sk, sk, sk, sk, sk, sk, sk, ol,  _],
+    [ _, ol, sk, ew, ey, sk, sk, ew, ey, sk, ol,  _],
+    [ _,  _, ol, sk, sk, mo, mo, sk, sk, ol,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, sh, sh, ol,  _,  _],
+    [ _, sk, ol, sh, si, sh, sh, si, sh, ol, sk,  _],
+    [ _, sk, ol, sh, sh, sh, sh, sh, sh, ol, sk,  _],
+    [ _,  _, ol, sh, bl, bl, bl, bl, sh, ol,  _,  _],
+    [ _,  _, ol, pn, pn, pn, pn, pn, pn, ol,  _,  _],
+    [ _,  _, ol, pn, pn, ol, ol, pn, pn, ol,  _,  _],
+    [ _,  _, ol, bo, bo, ol, ol, bo, bo, ol,  _,  _],
+    [ _,  _,  _, ol, ol,  _,  _, ol, ol,  _,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
 ];
 
 const CHAR_DOWN_1 = [
-    [0, 0, 'hair','hair','hair','hair', 0, 0],
-    [0, 'hair','hair','hair','hair','hair','hair', 0],
-    [0, 'skin','skin','skin','skin','skin','skin', 0],
-    [0, 'skin','eye','skin','skin','eye','skin', 0],
-    [0, 'skin','skin','mouth','mouth','skin','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 'skin','shirt','shirt','shirt','shirt','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 0, 'pants','pants','pants','pants', 0, 0],
-    [0, 'pants','pants', 0, 0, 0, 0, 0],
-    [0, 'shoe', 0, 0, 0, 'shoe', 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,  _,  _, ol, ol, ol, ol, ol, ol,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hh, hr, hr, hr, hr, hh, hr, ol,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, sk, sk, sk, sk, sk, sk, sk, sk, ol,  _],
+    [ _, ol, sk, ew, ey, sk, sk, ew, ey, sk, ol,  _],
+    [ _,  _, ol, sk, sk, mo, mo, sk, sk, ol,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, sh, sh, ol,  _,  _],
+    [ _,  _, ol, sh, si, sh, sh, si, sh, ol, sk,  _],
+    [ _, sk, ol, sh, sh, sh, sh, sh, sh, ol,  _,  _],
+    [ _,  _, ol, sh, bl, bl, bl, bl, sh, ol,  _,  _],
+    [ _,  _, ol, pn, pn, pn, pn, pn, pn, ol,  _,  _],
+    [ _, ol, pn, pn,  _,  _,  _,  _, pn, pn, ol,  _],
+    [ _, ol, bo, ol,  _,  _,  _,  _, ol, bo, ol,  _],
+    [ _,  _, ol,  _,  _,  _,  _,  _,  _, ol,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
 ];
 
-const CHAR_DOWN_2 = CHAR_DOWN_0; // Stand frame
+const CHAR_DOWN_2 = CHAR_DOWN_0;
 
 const CHAR_DOWN_3 = [
-    [0, 0, 'hair','hair','hair','hair', 0, 0],
-    [0, 'hair','hair','hair','hair','hair','hair', 0],
-    [0, 'skin','skin','skin','skin','skin','skin', 0],
-    [0, 'skin','eye','skin','skin','eye','skin', 0],
-    [0, 'skin','skin','mouth','mouth','skin','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 'skin','shirt','shirt','shirt','shirt','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 0, 'pants','pants','pants','pants', 0, 0],
-    [0, 0, 0, 0, 'pants','pants', 0, 0],
-    [0, 'shoe', 0, 0, 0, 'shoe', 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,  _,  _, ol, ol, ol, ol, ol, ol,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hh, hr, hr, hr, hr, hh, hr, ol,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, sk, sk, sk, sk, sk, sk, sk, sk, ol,  _],
+    [ _, ol, sk, ew, ey, sk, sk, ew, ey, sk, ol,  _],
+    [ _,  _, ol, sk, sk, mo, mo, sk, sk, ol,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, sh, sh, ol,  _,  _],
+    [ _, sk, ol, sh, si, sh, sh, si, sh, ol,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, sh, sh, ol, sk,  _],
+    [ _,  _, ol, sh, bl, bl, bl, bl, sh, ol,  _,  _],
+    [ _,  _, ol, pn, pn, pn, pn, pn, pn, ol,  _,  _],
+    [ _, ol, pn, pn,  _,  _,  _,  _, pn, pn, ol,  _],
+    [ _, ol, bo, ol,  _,  _,  _,  _, ol, bo, ol,  _],
+    [ _,  _, ol,  _,  _,  _,  _,  _,  _, ol,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
 ];
 
+// ── UP FACING ──
 const CHAR_UP_0 = [
-    [0, 0, 'hair','hair','hair','hair', 0, 0],
-    [0, 'hair','hair','hair','hair','hair','hair', 0],
-    [0, 'hair','hair','hair','hair','hair','hair', 0],
-    [0, 'skin','hair','hair','hair','hair','skin', 0],
-    [0, 'skin','skin','skin','skin','skin','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 'skin','shirt','shirt','shirt','shirt','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 0, 'pants','pants','pants','pants', 0, 0],
-    [0, 0, 'pants', 0, 0, 'pants', 0, 0],
-    [0, 0, 'shoe', 0, 0, 'shoe', 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,  _,  _, ol, ol, ol, ol, ol, ol,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hh, hr, hr, hr, hr, hh, hr, ol,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, sk, hr, hr, hr, hr, hr, hr, sk, ol,  _],
+    [ _,  _, ol, sk, sk, sk, sk, sk, sk, ol,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, sh, sh, ol,  _,  _],
+    [ _, sk, ol, sh, si, sh, sh, si, sh, ol, sk,  _],
+    [ _, sk, ol, sh, sh, sh, sh, sh, sh, ol, sk,  _],
+    [ _,  _, ol, sh, bl, bl, bl, bl, sh, ol,  _,  _],
+    [ _,  _, ol, pn, pn, pn, pn, pn, pn, ol,  _,  _],
+    [ _,  _, ol, pn, pn, ol, ol, pn, pn, ol,  _,  _],
+    [ _,  _, ol, bo, bo, ol, ol, bo, bo, ol,  _,  _],
+    [ _,  _,  _, ol, ol,  _,  _, ol, ol,  _,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
 ];
 
 const CHAR_UP_1 = [
-    [0, 0, 'hair','hair','hair','hair', 0, 0],
-    [0, 'hair','hair','hair','hair','hair','hair', 0],
-    [0, 'hair','hair','hair','hair','hair','hair', 0],
-    [0, 'skin','hair','hair','hair','hair','skin', 0],
-    [0, 'skin','skin','skin','skin','skin','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 'skin','shirt','shirt','shirt','shirt','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 0, 'pants','pants','pants','pants', 0, 0],
-    [0, 'pants','pants', 0, 0, 0, 0, 0],
-    [0, 'shoe', 0, 0, 0, 'shoe', 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,  _,  _, ol, ol, ol, ol, ol, ol,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hh, hr, hr, hr, hr, hh, hr, ol,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, sk, hr, hr, hr, hr, hr, hr, sk, ol,  _],
+    [ _,  _, ol, sk, sk, sk, sk, sk, sk, ol,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, sh, sh, ol,  _,  _],
+    [ _,  _, ol, sh, si, sh, sh, si, sh, ol, sk,  _],
+    [ _, sk, ol, sh, sh, sh, sh, sh, sh, ol,  _,  _],
+    [ _,  _, ol, sh, bl, bl, bl, bl, sh, ol,  _,  _],
+    [ _,  _, ol, pn, pn, pn, pn, pn, pn, ol,  _,  _],
+    [ _, ol, pn, pn,  _,  _,  _,  _, pn, pn, ol,  _],
+    [ _, ol, bo, ol,  _,  _,  _,  _, ol, bo, ol,  _],
+    [ _,  _, ol,  _,  _,  _,  _,  _,  _, ol,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
 ];
 
 const CHAR_UP_2 = CHAR_UP_0;
 
 const CHAR_UP_3 = [
-    [0, 0, 'hair','hair','hair','hair', 0, 0],
-    [0, 'hair','hair','hair','hair','hair','hair', 0],
-    [0, 'hair','hair','hair','hair','hair','hair', 0],
-    [0, 'skin','hair','hair','hair','hair','skin', 0],
-    [0, 'skin','skin','skin','skin','skin','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 'skin','shirt','shirt','shirt','shirt','skin', 0],
-    [0, 0, 'shirt','shirt','shirt','shirt', 0, 0],
-    [0, 0, 'pants','pants','pants','pants', 0, 0],
-    [0, 0, 0, 0, 'pants','pants', 0, 0],
-    [0, 'shoe', 0, 0, 0, 'shoe', 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,  _,  _, ol, ol, ol, ol, ol, ol,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hh, hr, hr, hr, hr, hh, hr, ol,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, sk, hr, hr, hr, hr, hr, hr, sk, ol,  _],
+    [ _,  _, ol, sk, sk, sk, sk, sk, sk, ol,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, sh, sh, ol,  _,  _],
+    [ _, sk, ol, sh, si, sh, sh, si, sh, ol,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, sh, sh, ol, sk,  _],
+    [ _,  _, ol, sh, bl, bl, bl, bl, sh, ol,  _,  _],
+    [ _,  _, ol, pn, pn, pn, pn, pn, pn, ol,  _,  _],
+    [ _, ol, pn, pn,  _,  _,  _,  _, pn, pn, ol,  _],
+    [ _, ol, bo, ol,  _,  _,  _,  _, ol, bo, ol,  _],
+    [ _,  _, ol,  _,  _,  _,  _,  _,  _, ol,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
 ];
 
+// ── LEFT FACING ──
 const CHAR_LEFT_0 = [
-    [0, 0, 'hair','hair','hair', 0, 0, 0],
-    [0, 'hair','hair','hair','hair','hair', 0, 0],
-    [0, 'skin','skin','skin','skin', 0, 0, 0],
-    [0, 'eye','skin','skin','skin', 0, 0, 0],
-    [0, 'skin','mouth','skin', 0, 0, 0, 0],
-    [0, 'shirt','shirt','shirt','shirt', 0, 0, 0],
-    ['skin','shirt','shirt','shirt','shirt', 0, 0, 0],
-    [0, 'shirt','shirt','shirt','shirt', 0, 0, 0],
-    [0, 'pants','pants','pants', 0, 0, 0, 0],
-    [0, 'pants', 0, 'pants', 0, 0, 0, 0],
-    [0, 'shoe', 0, 'shoe', 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,  _,  _, ol, ol, ol, ol, ol,  _,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, ol,  _,  _,  _],
+    [ _, ol, hr, hh, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, sk, sk, sk, sk, sk, sk, ol,  _,  _,  _],
+    [ ol, ew, ey, sk, sk, sk, sk, ol,  _,  _,  _,  _],
+    [ _, ol, sk, sk, mo, sk, ol,  _,  _,  _,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, ol,  _,  _,  _,  _],
+    [ _, sk, ol, sh, si, sh, sh, ol,  _,  _,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, ol, sk,  _,  _,  _],
+    [ _,  _, ol, sh, bl, bl, sh, ol,  _,  _,  _,  _],
+    [ _,  _, ol, pn, pn, pn, pn, ol,  _,  _,  _,  _],
+    [ _,  _, ol, pn, ol, pn, pn, ol,  _,  _,  _,  _],
+    [ _,  _, ol, bo, ol, ol, bo, ol,  _,  _,  _,  _],
+    [ _,  _,  _, ol,  _,  _, ol,  _,  _,  _,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
 ];
 
 const CHAR_LEFT_1 = [
-    [0, 0, 'hair','hair','hair', 0, 0, 0],
-    [0, 'hair','hair','hair','hair','hair', 0, 0],
-    [0, 'skin','skin','skin','skin', 0, 0, 0],
-    [0, 'eye','skin','skin','skin', 0, 0, 0],
-    [0, 'skin','mouth','skin', 0, 0, 0, 0],
-    [0, 'shirt','shirt','shirt','shirt', 0, 0, 0],
-    ['skin','shirt','shirt','shirt','shirt', 0, 0, 0],
-    [0, 'shirt','shirt','shirt','shirt', 0, 0, 0],
-    [0, 0, 'pants','pants', 0, 0, 0, 0],
-    [0, 'pants','pants', 0, 0, 0, 0, 0],
-    [0, 'shoe', 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,  _,  _, ol, ol, ol, ol, ol,  _,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, ol,  _,  _,  _],
+    [ _, ol, hr, hh, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, sk, sk, sk, sk, sk, sk, ol,  _,  _,  _],
+    [ ol, ew, ey, sk, sk, sk, sk, ol,  _,  _,  _,  _],
+    [ _, ol, sk, sk, mo, sk, ol,  _,  _,  _,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, ol,  _,  _,  _,  _],
+    [ _,  _, ol, sh, si, sh, sh, ol, sk,  _,  _,  _],
+    [ _, sk, ol, sh, sh, sh, sh, ol,  _,  _,  _,  _],
+    [ _,  _, ol, sh, bl, bl, sh, ol,  _,  _,  _,  _],
+    [ _,  _, ol, pn, pn, pn, pn, ol,  _,  _,  _,  _],
+    [ _, ol, pn, pn,  _,  _, pn, ol,  _,  _,  _,  _],
+    [ _, ol, bo, ol,  _,  _, ol, bo, ol,  _,  _,  _],
+    [ _,  _, ol,  _,  _,  _,  _, ol,  _,  _,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
 ];
 
 const CHAR_LEFT_2 = CHAR_LEFT_0;
 
 const CHAR_LEFT_3 = [
-    [0, 0, 'hair','hair','hair', 0, 0, 0],
-    [0, 'hair','hair','hair','hair','hair', 0, 0],
-    [0, 'skin','skin','skin','skin', 0, 0, 0],
-    [0, 'eye','skin','skin','skin', 0, 0, 0],
-    [0, 'skin','mouth','skin', 0, 0, 0, 0],
-    [0, 'shirt','shirt','shirt','shirt', 0, 0, 0],
-    ['skin','shirt','shirt','shirt','shirt', 0, 0, 0],
-    [0, 'shirt','shirt','shirt','shirt', 0, 0, 0],
-    [0, 'pants','pants', 0, 0, 0, 0, 0],
-    [0, 0, 'pants','pants', 0, 0, 0, 0],
-    [0, 0, 0, 'shoe', 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,  _,  _, ol, ol, ol, ol, ol,  _,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, ol,  _,  _,  _],
+    [ _, ol, hr, hh, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, sk, sk, sk, sk, sk, sk, ol,  _,  _,  _],
+    [ ol, ew, ey, sk, sk, sk, sk, ol,  _,  _,  _,  _],
+    [ _, ol, sk, sk, mo, sk, ol,  _,  _,  _,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, ol,  _,  _,  _,  _],
+    [ _, sk, ol, sh, si, sh, sh, ol,  _,  _,  _,  _],
+    [ _,  _, ol, sh, sh, sh, sh, ol, sk,  _,  _,  _],
+    [ _,  _, ol, sh, bl, bl, sh, ol,  _,  _,  _,  _],
+    [ _,  _, ol, pn, pn, pn, pn, ol,  _,  _,  _,  _],
+    [ _,  _, ol, pn,  _,  _, pn, pn, ol,  _,  _,  _],
+    [ _, ol, bo, ol,  _,  _, ol, bo, ol,  _,  _,  _],
+    [ _,  _, ol,  _,  _,  _,  _, ol,  _,  _,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
 ];
 
 // Right-facing frames are mirrored left frames
@@ -191,20 +244,20 @@ function resolveGrid(template, palette) {
     );
 }
 
-// Draw a character sprite
+// Draw a character sprite (12x16 grid)
 export function drawCharacter(ctx, x, y, facing, animFrame, palette, scale = 2) {
     const template = CHAR_FRAMES[facing][animFrame % 4];
     const resolved = resolveGrid(template, palette);
-    // Center the sprite: 8 pixels wide * scale, 12 pixels tall * scale
-    const offsetX = x - (8 * scale) / 2;
-    const offsetY = y - (12 * scale) + 4; // Feet at bottom
+    // Center the sprite: 12 pixels wide * scale, 16 pixels tall * scale
+    const offsetX = x - (12 * scale) / 2;
+    const offsetY = y - (16 * scale) + 8; // Feet aligned
     drawPixelGrid(ctx, offsetX, offsetY, scale, resolved);
 }
 
 // Draw attack sword swing
 export function drawSwordSwing(ctx, x, y, facing, frame, palette) {
     const swordColor = palette?.sword || '#AAAAAA';
-    const progress = frame / 12; // 0 to 1
+    const progress = frame / 12;
 
     ctx.fillStyle = swordColor;
 
@@ -241,50 +294,81 @@ export function drawSwordSwing(ctx, x, y, facing, frame, palette) {
     }
 }
 
-// NPC villager sprite (brown robe variant)
+// ── NPC SPRITES (12x16, Link's Awakening style robed villagers) ──
+
+// NPC palette keys
+const rb = 'robe';    // robe body
+const rh = 'robeHi';  // robe highlight
+const ns = 'nose';
+
+const NPC_DOWN_0 = [
+    [ _,  _,  _, ol, ol, ol, ol, ol, ol,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, sk, sk, sk, sk, sk, sk, sk, sk, ol,  _],
+    [ _, ol, sk, ey, sk, sk, sk, sk, ey, sk, ol,  _],
+    [ _, ol, sk, sk, sk, ns, ns, sk, sk, sk, ol,  _],
+    [ _,  _, ol, rb, rb, rb, rb, rb, rb, ol,  _,  _],
+    [ _,  _, ol, rb, rb, rb, rb, rb, rb, ol,  _,  _],
+    [ _, ol, rb, rb, rh, rb, rb, rh, rb, rb, ol,  _],
+    [ _, ol, rb, rb, rh, rb, rb, rh, rb, rb, ol,  _],
+    [ _,  _, ol, rb, rb, rb, rb, rb, rb, ol,  _,  _],
+    [ _,  _, ol, rb, rb, rb, rb, rb, rb, ol,  _,  _],
+    [ _,  _,  _, ol, rb, ol, ol, rb, ol,  _,  _,  _],
+    [ _,  _,  _, ol, bo, ol, ol, bo, ol,  _,  _,  _],
+    [ _,  _,  _,  _, ol,  _,  _, ol,  _,  _,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
+];
+
+const NPC_DOWN_1 = [
+    [ _,  _,  _, ol, ol, ol, ol, ol, ol,  _,  _,  _],
+    [ _,  _, ol, hr, hr, hr, hr, hr, hr, ol,  _,  _],
+    [ _, ol, hr, hr, hr, hr, hr, hr, hr, hr, ol,  _],
+    [ _, ol, sk, sk, sk, sk, sk, sk, sk, sk, ol,  _],
+    [ _, ol, sk, ey, sk, sk, sk, sk, ey, sk, ol,  _],
+    [ _, ol, sk, sk, sk, ns, ns, sk, sk, sk, ol,  _],
+    [ _,  _, ol, rb, rb, rb, rb, rb, rb, ol,  _,  _],
+    [ _,  _, ol, rb, rb, rb, rb, rb, rb, ol,  _,  _],
+    [ _, ol, rb, rb, rh, rb, rb, rh, rb, rb, ol,  _],
+    [ _, ol, rb, rb, rh, rb, rb, rh, rb, rb, ol,  _],
+    [ _,  _, ol, rb, rb, rb, rb, rb, rb, ol,  _,  _],
+    [ _,  _, ol, rb, rb, rb, rb, rb, ol,  _,  _,  _],
+    [ _,  _,  _, ol, rb, ol, rb, ol,  _,  _,  _,  _],
+    [ _,  _,  _, ol, bo, ol, ol, bo, ol,  _,  _,  _],
+    [ _,  _,  _,  _, ol,  _,  _, ol,  _,  _,  _,  _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _],
+];
+
 const NPC_FRAMES = {
-    down: [
-        [
-            [0, 0, 'hair','hair','hair','hair', 0, 0],
-            [0, 'hair','hair','hair','hair','hair','hair', 0],
-            [0, 'skin','skin','skin','skin','skin','skin', 0],
-            [0, 'skin','eye','skin','skin','eye','skin', 0],
-            [0, 'skin','skin','nose','nose','skin','skin', 0],
-            [0, 'robe','robe','robe','robe','robe','robe', 0],
-            [0, 'robe','robe','robe','robe','robe','robe', 0],
-            [0, 'robe','robe','robe','robe','robe','robe', 0],
-            [0, 0, 'robe','robe','robe','robe', 0, 0],
-            [0, 0, 'shoe', 0, 0, 'shoe', 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-        ],
-        [
-            [0, 0, 'hair','hair','hair','hair', 0, 0],
-            [0, 'hair','hair','hair','hair','hair','hair', 0],
-            [0, 'skin','skin','skin','skin','skin','skin', 0],
-            [0, 'skin','eye','skin','skin','eye','skin', 0],
-            [0, 'skin','skin','nose','nose','skin','skin', 0],
-            [0, 'robe','robe','robe','robe','robe','robe', 0],
-            [0, 'robe','robe','robe','robe','robe','robe', 0],
-            [0, 'robe','robe','robe','robe','robe','robe', 0],
-            [0, 'robe','robe','robe','robe', 0, 0, 0],
-            [0, 0, 'shoe', 0, 'shoe', 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-        ],
-    ],
+    down: [NPC_DOWN_0, NPC_DOWN_1],
 };
 
 export function drawNPC(ctx, x, y, facing, animFrame, palette, scale = 2) {
+    // Add default highlight if not present
+    const fullPalette = {
+        robeHi: lightenColor(palette.robe, 30),
+        ol: '#111111',
+        ...palette
+    };
     const frames = NPC_FRAMES[facing] || NPC_FRAMES.down;
     const template = frames[animFrame % frames.length];
-    const resolved = resolveGrid(template, palette);
-    const offsetX = x - (8 * scale) / 2;
-    const offsetY = y - (12 * scale) + 4;
+    const resolved = resolveGrid(template, fullPalette);
+    const offsetX = x - (12 * scale) / 2;
+    const offsetY = y - (16 * scale) + 8;
     drawPixelGrid(ctx, offsetX, offsetY, scale, resolved);
 }
 
-// Item sprites (8x8 pixel grids)
+// Lighten a hex color by an amount
+function lightenColor(hex, amount) {
+    if (!hex) return '#888';
+    const num = parseInt(hex.slice(1), 16);
+    const r = Math.min(255, (num >> 16) + amount);
+    const g = Math.min(255, ((num >> 8) & 0xff) + amount);
+    const b = Math.min(255, (num & 0xff) + amount);
+    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+}
+
+// ── ITEM SPRITES (8x8 pixel grids) ──
 const ITEM_SPRITES = {
     wooden_sword: [
         [0, 0, 0, 0, 0, 0, '#AAA', 0],
@@ -384,7 +468,7 @@ export function drawItem(ctx, x, y, itemId, scale = 2) {
     drawPixelGrid(ctx, x, y, scale, sprite);
 }
 
-// Breakable object sprites
+// ── BREAKABLE OBJECT SPRITES ──
 export function drawBreakable(ctx, x, y, type) {
     switch (type) {
         case 'grass':
@@ -415,14 +499,12 @@ export function drawBreakable(ctx, x, y, type) {
             ctx.fillRect(x + 10, y + 6, 12, 6);
             break;
         case 'golden_pot':
-            // Same as pot but with golden sparkles
             ctx.fillStyle = '#8B6914';
             ctx.fillRect(x + 8, y + 6, 16, 4);
             ctx.fillRect(x + 6, y + 10, 20, 14);
             ctx.fillRect(x + 8, y + 24, 16, 4);
             ctx.fillStyle = '#A67C1A';
             ctx.fillRect(x + 10, y + 12, 12, 8);
-            // Golden sparkles
             ctx.fillStyle = '#FFD700';
             ctx.fillRect(x + 4, y + 4, 2, 2);
             ctx.fillRect(x + 26, y + 8, 2, 2);
@@ -432,13 +514,12 @@ export function drawBreakable(ctx, x, y, type) {
     }
 }
 
-// Push block sprite (obsidian)
+// ── PUSH BLOCK SPRITE (obsidian) ──
 export function drawPushBlock(ctx, x, y) {
     ctx.fillStyle = '#1A0A2E';
     ctx.fillRect(x, y, 32, 32);
     ctx.fillStyle = '#2D1B4E';
     ctx.fillRect(x + 2, y + 2, 28, 28);
-    // Purple highlights
     ctx.fillStyle = '#4A2D7A';
     ctx.fillRect(x + 4, y + 4, 8, 8);
     ctx.fillRect(x + 20, y + 16, 8, 8);
@@ -446,42 +527,57 @@ export function drawPushBlock(ctx, x, y) {
     ctx.fillRect(x + 14, y + 10, 6, 6);
 }
 
-// Zombie sprite
+// ── ZOMBIE SPRITE (12x16, Link's Awakening style) ──
+const zol = '#111111';
+const zsk = '#4A7A4A';  // zombie skin (green)
+const zsh = '#3A6A3A';  // zombie shirt (dark green)
+const zhi = '#5A9A5A';  // highlight
+const zhr = '#2D4A2D';  // zombie hair
+const zey = '#CC1111';  // red eyes
+
 const ZOMBIE_DOWN_0 = [
-    [0, 0, '#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D', 0, 0],
-    [0, '#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D', 0],
-    [0, '#4A7A4A','#4A7A4A','#4A7A4A','#4A7A4A','#4A7A4A','#4A7A4A', 0],
-    [0, '#4A7A4A','#111','#4A7A4A','#4A7A4A','#111','#4A7A4A', 0],
-    [0, '#4A7A4A','#4A7A4A','#333','#333','#4A7A4A','#4A7A4A', 0],
-    [0, '#4A7A4A','#3A6A3A','#3A6A3A','#3A6A3A','#3A6A3A','#4A7A4A', 0],
-    ['#4A7A4A','#4A7A4A','#3A6A3A','#3A6A3A','#3A6A3A','#3A6A3A','#4A7A4A','#4A7A4A'],
-    ['#4A7A4A', 0, '#3A6A3A','#3A6A3A','#3A6A3A','#3A6A3A', 0, '#4A7A4A'],
-    [0, 0, '#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D', 0, 0],
-    [0, 0, '#2D4A2D', 0, 0, '#2D4A2D', 0, 0],
-    [0, 0, '#333', 0, 0, '#333', 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,   _,   _, zol, zol, zol, zol, zol, zol,  _,   _,   _],
+    [ _,   _, zol, zhr, zhr, zhr, zhr, zhr, zhr, zol,  _,   _],
+    [ _, zol, zhr, zhr, zhr, zhr, zhr, zhr, zhr, zhr, zol,  _],
+    [ _, zol, zsk, zsk, zsk, zsk, zsk, zsk, zsk, zsk, zol,  _],
+    [ _, zol, zsk, zey, zsk, zsk, zsk, zsk, zey, zsk, zol,  _],
+    [ _, zol, zsk, zsk, zsk, '#333', '#333', zsk, zsk, zsk, zol,  _],
+    [ _,  _, zol, zsh, zsh, zsh, zsh, zsh, zsh, zol,  _,   _],
+    [ _,  _, zol, zsh, zsh, zsh, zsh, zsh, zsh, zol,  _,   _],
+    [ _, zsk, zol, zsh, zhi, zsh, zsh, zhi, zsh, zol, zsk,  _],
+    [ _, zsk, zol, zsh, zsh, zsh, zsh, zsh, zsh, zol, zsk,  _],
+    [ _,  _, zol, zsh, zsh, zsh, zsh, zsh, zsh, zol,  _,   _],
+    [ _,  _, zol, zhr, zhr, zhr, zhr, zhr, zhr, zol,  _,   _],
+    [ _,  _, zol, zhr, zhr, zol, zol, zhr, zhr, zol,  _,   _],
+    [ _,  _, zol, '#333', '#333', zol, zol, '#333', '#333', zol,  _,   _],
+    [ _,  _,  _, zol, zol,  _,  _, zol, zol,  _,   _,   _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,   _,   _],
 ];
 
 const ZOMBIE_DOWN_1 = [
-    [0, 0, '#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D', 0, 0],
-    [0, '#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D', 0],
-    [0, '#4A7A4A','#4A7A4A','#4A7A4A','#4A7A4A','#4A7A4A','#4A7A4A', 0],
-    [0, '#4A7A4A','#111','#4A7A4A','#4A7A4A','#111','#4A7A4A', 0],
-    [0, '#4A7A4A','#4A7A4A','#333','#333','#4A7A4A','#4A7A4A', 0],
-    [0, '#4A7A4A','#3A6A3A','#3A6A3A','#3A6A3A','#3A6A3A','#4A7A4A', 0],
-    ['#4A7A4A','#4A7A4A','#3A6A3A','#3A6A3A','#3A6A3A','#3A6A3A','#4A7A4A','#4A7A4A'],
-    ['#4A7A4A', 0, '#3A6A3A','#3A6A3A','#3A6A3A','#3A6A3A', 0, '#4A7A4A'],
-    [0, 0, '#2D4A2D','#2D4A2D','#2D4A2D','#2D4A2D', 0, 0],
-    [0, '#2D4A2D','#2D4A2D', 0, 0, 0, 0, 0],
-    [0, '#333', 0, 0, 0, '#333', 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [ _,   _,   _, zol, zol, zol, zol, zol, zol,  _,   _,   _],
+    [ _,   _, zol, zhr, zhr, zhr, zhr, zhr, zhr, zol,  _,   _],
+    [ _, zol, zhr, zhr, zhr, zhr, zhr, zhr, zhr, zhr, zol,  _],
+    [ _, zol, zsk, zsk, zsk, zsk, zsk, zsk, zsk, zsk, zol,  _],
+    [ _, zol, zsk, zey, zsk, zsk, zsk, zsk, zey, zsk, zol,  _],
+    [ _, zol, zsk, zsk, zsk, '#333', '#333', zsk, zsk, zsk, zol,  _],
+    [ _,  _, zol, zsh, zsh, zsh, zsh, zsh, zsh, zol,  _,   _],
+    [ _,  _, zol, zsh, zsh, zsh, zsh, zsh, zsh, zol,  _,   _],
+    [ _,  _, zol, zsh, zhi, zsh, zsh, zhi, zsh, zol, zsk,  _],
+    [ _, zsk, zol, zsh, zsh, zsh, zsh, zsh, zsh, zol,  _,   _],
+    [ _,  _, zol, zsh, zsh, zsh, zsh, zsh, zsh, zol,  _,   _],
+    [ _,  _, zol, zhr, zhr, zhr, zhr, zhr, zhr, zol,  _,   _],
+    [ _, zol, zhr, zhr,  _,  _,  _,  _, zhr, zhr, zol,  _],
+    [ _, zol, '#333', zol,  _,  _,  _,  _, zol, '#333', zol,  _],
+    [ _,  _, zol,  _,  _,  _,  _,  _,  _, zol,  _,   _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,   _,   _],
 ];
 
 export function drawZombie(ctx, x, y, animFrame, scale = 2) {
     const frames = [ZOMBIE_DOWN_0, ZOMBIE_DOWN_1];
     const grid = frames[animFrame % 2];
     const resolved = grid.map(row => row.map(c => c === 0 ? null : c));
-    const offsetX = x - (8 * scale) / 2;
-    const offsetY = y - (12 * scale) + 4;
+    const offsetX = x - (12 * scale) / 2;
+    const offsetY = y - (16 * scale) + 8;
     drawPixelGrid(ctx, offsetX, offsetY, scale, resolved);
 }
