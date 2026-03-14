@@ -563,7 +563,7 @@ function renderTitle() {
     drawTitle(ctx, 50);
     ctx.fillStyle = '#aaa';
     drawSmallText(ctx, 'Zelda/Minecraft mashup by', VIRTUAL_WIDTH / 2 - 75, 88);
-    drawSmallText(ctx, 'Jarret, Vanner, + Ayla... also Claude', VIRTUAL_WIDTH / 2 - 108, 97);
+    drawSmallText(ctx, 'J, V, A... and also Claude', VIRTUAL_WIDTH / 2 - 78, 97);
 
     // Version number below subtitle
     ctx.fillStyle = '#555';
