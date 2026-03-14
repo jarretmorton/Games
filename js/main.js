@@ -23,7 +23,7 @@ import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -562,16 +562,17 @@ function renderTitle() {
 
     drawTitle(ctx, 50);
     ctx.fillStyle = '#aaa';
-    drawSmallText(ctx, 'A Minecraft Adventure', VIRTUAL_WIDTH / 2 - 63, 90);
+    drawSmallText(ctx, 'Zelda/Minecraft mashup by', VIRTUAL_WIDTH / 2 - 75, 88);
+    drawSmallText(ctx, 'Jarret, Vanner, + Ayla... also Claude', VIRTUAL_WIDTH / 2 - 108, 97);
+
+    // Version number below subtitle
+    ctx.fillStyle = '#555';
+    drawSmallText(ctx, 'v' + VERSION, VIRTUAL_WIDTH / 2 - 12, 108);
 
     if (Math.floor(titleTimer / 30) % 2 === 0) {
         ctx.fillStyle = '#fff';
         drawSmallText(ctx, 'Press ENTER to Start', VIRTUAL_WIDTH / 2 - 60, VIRTUAL_HEIGHT - 60);
     }
-
-    // Version number
-    ctx.fillStyle = '#555';
-    drawSmallText(ctx, 'v' + VERSION, VIRTUAL_WIDTH - 30, VIRTUAL_HEIGHT - 8);
 }
 
 function renderCharacterSelect() {
