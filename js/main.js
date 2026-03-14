@@ -42,6 +42,13 @@ let inDungeon = false;
 let puzzleSolvedAnimation = 0;
 let dungeonCleared = false;
 
+// Save point for respawning after death
+let savePoint = { x: SPAWN_X, y: SPAWN_Y, inDungeon: false };
+
+// Death screen
+let deathTimer = 0;
+const DEATH_SCREEN_DURATION = 120; // 2 seconds at 60fps
+
 // Transition effect
 let transition = { active: false, timer: 0, maxTime: 30, callback: null };
 
@@ -125,6 +132,13 @@ function update() {
 
         case States.SHOP:
             updateShop();
+            break;
+
+        case States.DEAD:
+            deathTimer++;
+            if (deathTimer >= DEATH_SCREEN_DURATION && (input.action || input.start)) {
+                respawnPlayer();
+            }
             break;
     }
 }
@@ -239,6 +253,9 @@ function updateDungeon() {
         }
     }
 
+    // Check if player died
+    if (checkPlayerDeath()) return;
+
     // Player attacks enemy
     if (input.action && player.equippedItem && player.equippedItem.type === 'weapon') {
         if (player.attack()) {
@@ -281,6 +298,8 @@ function updateDungeon() {
 }
 
 function enterDungeon() {
+    // Save position at dungeon entrance
+    savePoint = { x: DUNGEON_SPAWN_X, y: DUNGEON_SPAWN_Y, inDungeon: true };
     transition.active = true;
     transition.timer = 0;
     transition.maxTime = 20;
@@ -299,14 +318,47 @@ function enterDungeon() {
 }
 
 function exitDungeon() {
+    const exitX = 5 * TILE_SIZE + TILE_SIZE / 2;
+    const exitY = 25 * TILE_SIZE + TILE_SIZE / 2;
+    // Save position at dungeon exit
+    savePoint = { x: exitX, y: exitY, inDungeon: false };
     transition.active = true;
     transition.timer = 0;
     transition.maxTime = 20;
     transition.callback = () => {
         inDungeon = false;
-        // Place player just south of dungeon entrance (row 25 is open stone floor after puzzle solved)
-        player.x = 5 * TILE_SIZE + TILE_SIZE / 2;
-        player.y = 25 * TILE_SIZE + TILE_SIZE / 2;
+        player.x = exitX;
+        player.y = exitY;
+    };
+}
+
+function checkPlayerDeath() {
+    if (player.health <= 0) {
+        deathTimer = 0;
+        gameState.change(States.DEAD);
+        return true;
+    }
+    return false;
+}
+
+function respawnPlayer() {
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        player.health = player.maxHealth;
+        player.state = 'idle';
+        player.hurtTimer = 0;
+        player.invincibleTimer = 60;
+        player.x = savePoint.x;
+        player.y = savePoint.y;
+        inDungeon = savePoint.inDungeon;
+        if (inDungeon && !dungeonCleared) {
+            enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'zombie')];
+        } else if (inDungeon) {
+            enemies = [];
+        }
+        gameState.change(States.PLAYING);
     };
 }
 
@@ -327,8 +379,13 @@ function updateDrops() {
     for (const drop of drops) {
         drop.timer++;
         drop.y += drop.vy;
+        if (drop.vx) {
+            drop.x += drop.vx;
+            drop.vx *= 0.95; // friction
+        }
         drop.vy += 0.1;
-        if (drop.vy > 0) drop.vy = 0;
+        if (drop.vy > 0 && drop.type !== 'golden_blueberry') drop.vy = 0;
+        if (drop.type === 'golden_blueberry' && drop.vy > 2) drop.vy = 2;
 
         if (drop.timer > 10) {
             const dist = Math.abs(player.x - drop.x) + Math.abs(player.y - drop.y);
@@ -348,10 +405,19 @@ function updateDrops() {
 }
 
 function spawnDrop(x, y, drop) {
+    // Blueberry bounces southward away from house so it's accessible
+    let dropX = x + (Math.random() - 0.5) * 16;
+    let dropVx = 0;
+    let dropVy = -2;
+    if (drop.type === 'golden_blueberry') {
+        dropVx = (Math.random() - 0.5) * 1.5;
+        dropVy = 1.5;  // Bounce south, away from the church
+    }
     drops.push({
-        x: x + (Math.random() - 0.5) * 16,
+        x: dropX,
         y: y - 8,
-        vy: -2,
+        vx: dropVx,
+        vy: dropVy,
         type: drop.type,
         amount: drop.amount || 0,
         timer: 0,
@@ -451,6 +517,9 @@ function render() {
             if (gameState.current === States.DIALOGUE) dialogue.render(ctx);
             if (gameState.current === States.INVENTORY) renderInventoryUI();
             if (gameState.current === States.SHOP) renderShopUI();
+            break;
+        case States.DEAD:
+            renderDeathScreen();
             break;
     }
 
@@ -689,6 +758,23 @@ function renderShopUI() {
     }
     ctx.fillStyle = '#555';
     drawSmallText(ctx, 'Z:Buy  X:Leave', px + 8, py + ph - 12);
+}
+
+function renderDeathScreen() {
+    // Fade to dark red/black
+    const fadeIn = Math.min(1, deathTimer / 30);
+    ctx.fillStyle = `rgba(30, 0, 0, ${fadeIn * 0.9})`;
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+    if (deathTimer > 20) {
+        ctx.fillStyle = '#CC2222';
+        drawSmallText(ctx, 'You Died!', VIRTUAL_WIDTH / 2 - 27, VIRTUAL_HEIGHT / 2 - 16);
+    }
+
+    if (deathTimer >= DEATH_SCREEN_DURATION && Math.floor(deathTimer / 20) % 2 === 0) {
+        ctx.fillStyle = '#888';
+        drawSmallText(ctx, 'Press ENTER to Continue', VIRTUAL_WIDTH / 2 - 69, VIRTUAL_HEIGHT / 2 + 10);
+    }
 }
 
 // ── PIXEL FONT ──

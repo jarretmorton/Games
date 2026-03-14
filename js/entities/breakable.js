@@ -18,6 +18,11 @@ export class Breakable {
         this.particles = [];
         this.destroying = false;
         this.destroyTimer = 0;
+
+        // Regeneration (bushes and grass only)
+        this.canRegenerate = (this.type === 'bush' || this.type === 'grass');
+        this.regenTimer = 0;
+        this.regenDelay = 600; // ~10 seconds at 60fps
     }
 
     hit() {
@@ -80,6 +85,21 @@ export class Breakable {
             this.particles = this.particles.filter(p => p.life > 0);
             if (this.destroyTimer <= 0 && this.particles.length === 0) {
                 this.active = false;
+                if (this.canRegenerate) {
+                    this.regenTimer = this.regenDelay;
+                }
+            }
+        }
+
+        // Regeneration countdown
+        if (!this.active && this.canRegenerate && this.regenTimer > 0) {
+            this.regenTimer--;
+            if (this.regenTimer <= 0) {
+                this.active = true;
+                this.solid = true;
+                this.hp = 1;
+                this.destroying = false;
+                this.particles = [];
             }
         }
     }
