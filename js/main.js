@@ -21,6 +21,9 @@ import { Enemy } from './entities/enemy.js';
 import { TILE_SIZE, tileProps, T } from './data/tileTypes.js';
 import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
+import { music } from './audio/music.js';
+
+export const VERSION = '0.2.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -99,7 +102,10 @@ function update() {
 
     switch (gameState.current) {
         case States.TITLE:
-            if (input.start || input.action) gameState.change(States.CHARACTER_SELECT);
+            if (input.start || input.action) {
+                music.unlock();
+                gameState.change(States.CHARACTER_SELECT);
+            }
             break;
 
         case States.CHARACTER_SELECT:
@@ -110,6 +116,7 @@ function update() {
                 player.init(SPAWN_X, SPAWN_Y, chosen.palette);
                 player.characterId = chosen.id;
                 startGame();
+                music.play('overworld');
                 gameState.change(States.PLAYING);
             }
             break;
@@ -314,6 +321,7 @@ function enterDungeon() {
         } else {
             enemies = [];
         }
+        music.play('dungeon');
     };
 }
 
@@ -329,12 +337,14 @@ function exitDungeon() {
         inDungeon = false;
         player.x = exitX;
         player.y = exitY;
+        music.play('overworld');
     };
 }
 
 function checkPlayerDeath() {
     if (player.health <= 0) {
         deathTimer = 0;
+        music.stop();
         gameState.change(States.DEAD);
         return true;
     }
@@ -358,6 +368,7 @@ function respawnPlayer() {
         } else if (inDungeon) {
             enemies = [];
         }
+        music.play(inDungeon ? 'dungeon' : 'overworld');
         gameState.change(States.PLAYING);
     };
 }
@@ -557,6 +568,10 @@ function renderTitle() {
         ctx.fillStyle = '#fff';
         drawSmallText(ctx, 'Press ENTER to Start', VIRTUAL_WIDTH / 2 - 60, VIRTUAL_HEIGHT - 60);
     }
+
+    // Version number
+    ctx.fillStyle = '#555';
+    drawSmallText(ctx, 'v' + VERSION, VIRTUAL_WIDTH - 30, VIRTUAL_HEIGHT - 8);
 }
 
 function renderCharacterSelect() {

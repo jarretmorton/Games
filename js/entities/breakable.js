@@ -85,6 +85,7 @@ export class Breakable {
             this.particles = this.particles.filter(p => p.life > 0);
             if (this.destroyTimer <= 0 && this.particles.length === 0) {
                 this.active = false;
+                this.destroying = false;
                 if (this.canRegenerate) {
                     this.regenTimer = this.regenDelay;
                 }
