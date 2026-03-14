@@ -23,7 +23,7 @@ import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;

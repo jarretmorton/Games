@@ -19,7 +19,7 @@ export const player = {
 
     // Attack
     attackTimer: 0,
-    attackDuration: 12,
+    attackDuration: 16,
 
     // Hurt / invincibility
     hurtTimer: 0,
@@ -165,12 +165,14 @@ export const player = {
 
     getAttackHitbox() {
         if (this.state !== 'attacking') return null;
-        const w = 20, h = 14;
+        // Arc-based hitbox: covers the semicircle sweep area in front of the character
+        // The sword sweeps ~180° so the hitbox is wider to cover the arc
+        const reach = 20;
         switch (this.facing) {
-            case 'up':    return { x: this.x - w / 2, y: this.y - 24, w, h };
-            case 'down':  return { x: this.x - w / 2, y: this.y + 8, w, h };
-            case 'left':  return { x: this.x - 24, y: this.y - h / 2, w: h, h: w };
-            case 'right': return { x: this.x + 8, y: this.y - h / 2, w: h, h: w };
+            case 'up':    return { x: this.x - reach, y: this.y - 26, w: reach * 2, h: 18 };
+            case 'down':  return { x: this.x - reach, y: this.y + 2, w: reach * 2, h: 18 };
+            case 'left':  return { x: this.x - 26, y: this.y - reach, w: 18, h: reach * 2 };
+            case 'right': return { x: this.x + 2, y: this.y - reach, w: 18, h: reach * 2 };
         }
         return null;
     },
@@ -198,7 +200,9 @@ export const player = {
 
         // Draw sword swing during attack
         if (this.state === 'attacking' && this.equippedItem) {
-            drawSwordSwing(ctx, this.x, this.y, this.facing, this.attackTimer, { sword: '#AAA' });
+            drawSwordSwing(ctx, this.x, this.y, this.facing, this.attackTimer, {
+                swordId: this.equippedItem.id,
+            });
         }
     }
 };

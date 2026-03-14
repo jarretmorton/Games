@@ -254,44 +254,146 @@ export function drawCharacter(ctx, x, y, facing, animFrame, palette, scale = 2) 
     drawPixelGrid(ctx, offsetX, offsetY, scale, resolved);
 }
 
-// Draw attack sword swing
+// Sword color lookup by weapon type
+const SWORD_COLORS = {
+    wooden_sword: { blade: '#AAAAAA', highlight: '#CCCCCC' },
+    stone_sword:  { blade: '#888888', highlight: '#AAAAAA' },
+    iron_sword:   { blade: '#DDDDDD', highlight: '#FFFFFF' },
+};
+
+// Draw swoosh air-wave trail behind the sword arc
+function drawSwooshTrail(ctx, pivotX, pivotY, facing, progress, radius) {
+    if (progress < 0.15) return;
+
+    // Compute angle at a given progress for this facing direction
+    function angleAt(p) {
+        switch (facing) {
+            case 'down':  return Math.PI * (1 - p);
+            case 'up':    return -p * Math.PI;
+            case 'left':  return Math.PI * (1.5 - p);
+            case 'right': return Math.PI * (0.5 - p);
+        }
+    }
+
+    // Draw trailing swoosh arcs at previous blade positions
+    const trailSteps = 4;
+    for (let i = 1; i <= trailSteps; i++) {
+        const trailP = Math.max(0, progress - i * 0.08);
+        if (trailP <= 0) continue;
+
+        const tAngle = angleAt(trailP);
+        const alpha = (1 - i / (trailSteps + 1)) * 0.6 * Math.min(1, progress * 3);
+
+        // Draw small arc segment at the trail position (air wave crescent)
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pivotX, pivotY, radius + i * 2, tAngle - 0.2, tAngle + 0.2);
+        ctx.stroke();
+
+        // Draw a slightly larger, fainter outer wave
+        if (i <= 2) {
+            ctx.globalAlpha = alpha * 0.4;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, radius + i * 2 + 4, tAngle - 0.3, tAngle + 0.3);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    // Draw main swoosh arc - a wide crescent showing the full sweep path
+    if (progress > 0.3) {
+        const currentAngle = angleAt(progress);
+        const startTrailAngle = angleAt(Math.max(0, progress - 0.35));
+        ctx.save();
+        ctx.globalAlpha = 0.35 * Math.min(1, (1 - progress) * 3);
+        ctx.strokeStyle = '#CCDDFF';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        // Determine arc direction based on facing
+        const counterClockwise = (facing === 'up' || facing === 'right');
+        ctx.arc(pivotX, pivotY, radius + 2, startTrailAngle, currentAngle, counterClockwise);
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
+// Draw attack sword swing with arc motion and air wave effects
 export function drawSwordSwing(ctx, x, y, facing, frame, palette) {
-    const swordColor = palette?.sword || '#AAAAAA';
-    const progress = frame / 12;
+    const swordId = palette?.swordId;
+    const colors = SWORD_COLORS[swordId] || SWORD_COLORS.wooden_sword;
+    const swordColor = palette?.sword || colors.blade;
+    const highlightColor = colors.highlight;
+    const hiltColor = '#6B4226';
+    const guardColor = '#8B6914';
+    const totalFrames = 16;
+    const progress = 1 - (frame / totalFrames); // 0→1 as animation plays
 
+    const bladeLength = 14;
+    const hiltLen = 4;
+
+    // Pivot point (character's hand) and swing angle per direction
+    let pivotX, pivotY, angle;
+
+    switch (facing) {
+        case 'down':
+            // Hand at chest level, sword sweeps left→down→right (180° arc)
+            pivotX = x;
+            pivotY = y + 2;
+            angle = Math.PI * (1 - progress); // π→0
+            break;
+        case 'up':
+            // Hand at upper back, sword sweeps right→up→left
+            pivotX = x;
+            pivotY = y - 10;
+            angle = -progress * Math.PI; // 0→-π
+            break;
+        case 'left':
+            // Hand on left side, sword sweeps up→left→down
+            pivotX = x - 4;
+            pivotY = y - 2;
+            angle = Math.PI * (1.5 - progress); // 3π/2→π/2
+            break;
+        case 'right':
+            // Hand on right side, sword sweeps down→right→up
+            pivotX = x + 4;
+            pivotY = y - 2;
+            angle = Math.PI * (0.5 - progress); // π/2→-π/2
+            break;
+    }
+
+    // Draw swoosh trail first (renders behind the sword)
+    drawSwooshTrail(ctx, pivotX, pivotY, facing, progress, bladeLength + hiltLen);
+
+    // Draw the sword using canvas rotation for proper arc positioning
+    ctx.save();
+    ctx.translate(Math.round(pivotX), Math.round(pivotY));
+    ctx.rotate(angle);
+
+    // Hilt (extends behind the pivot toward the character)
+    ctx.fillStyle = hiltColor;
+    ctx.fillRect(-2, -1, hiltLen, 3);
+
+    // Guard crosspiece (perpendicular bar at blade-hilt junction)
+    ctx.fillStyle = guardColor;
+    ctx.fillRect(hiltLen - 1, -3, 2, 7);
+
+    // Blade
     ctx.fillStyle = swordColor;
+    ctx.fillRect(hiltLen + 1, -1, bladeLength, 3);
 
-    switch (facing) {
-        case 'down':
-            ctx.fillRect(x - 2 + progress * 12 - 6, y + 8, 4, 14);
-            break;
-        case 'up':
-            ctx.fillRect(x + 2 - progress * 12 + 6, y - 22, 4, 14);
-            break;
-        case 'left':
-            ctx.fillRect(x - 22, y - 2 + progress * 12 - 6, 14, 4);
-            break;
-        case 'right':
-            ctx.fillRect(x + 8, y + 2 - progress * 12 + 6, 14, 4);
-            break;
-    }
+    // Blade highlight (center shine)
+    ctx.fillStyle = highlightColor;
+    ctx.fillRect(hiltLen + 3, 0, bladeLength - 4, 1);
 
-    // Sword hilt
-    ctx.fillStyle = '#6B4226';
-    switch (facing) {
-        case 'down':
-            ctx.fillRect(x - 2 + progress * 12 - 6, y + 6, 4, 4);
-            break;
-        case 'up':
-            ctx.fillRect(x + 2 - progress * 12 + 6, y - 10, 4, 4);
-            break;
-        case 'left':
-            ctx.fillRect(x - 10, y - 2 + progress * 12 - 6, 4, 4);
-            break;
-        case 'right':
-            ctx.fillRect(x + 6, y + 2 - progress * 12 + 6, 4, 4);
-            break;
-    }
+    // Blade tip (bright point)
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(hiltLen + bladeLength - 1, 0, 2, 1);
+
+    ctx.restore();
 }
 
 // ── NPC SPRITES (12x16, Link's Awakening style robed villagers) ──
