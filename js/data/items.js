@@ -51,6 +51,12 @@ export const itemDefs = {
         type: 'key_item',
         spriteId: 'diamond',
     },
+    key: {
+        id: 'key',
+        name: 'Dungeon Key',
+        type: 'key_item',
+        spriteId: 'key',
+    },
     dragon_breath: {
         id: 'dragon_breath',
         name: 'Dragon Breath Potion',
