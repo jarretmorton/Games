@@ -779,6 +779,16 @@ const ITEM_SPRITES = {
         [0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
     ],
+    key: [
+        [0, 0, '#FFD700','#FFD700', 0, 0, 0, 0],
+        [0, '#FFD700','#FFF8AA','#FFD700','#FFD700', 0, 0, 0],
+        [0, '#FFD700', 0, 0, '#FFD700', 0, 0, 0],
+        [0, 0, '#FFD700','#FFD700','#FFD700','#FFD700','#FFD700', 0],
+        [0, 0, 0, 0, 0, '#FFD700', 0, 0],
+        [0, 0, 0, 0, '#FFD700','#FFD700', 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
 };
 
 export function drawItem(ctx, x, y, itemId, scale = 2) {
@@ -971,3 +981,44 @@ export function drawTrappedSkeleton(ctx, x, y, animFrame) {
     // Draw skeleton inside
     drawSkeleton(ctx, x, y, animFrame, 2);
 }
+
+// ── CHEST SPRITE ──
+export function drawChest(ctx, x, y, opened = false) {
+    const scale = 2;
+    const cx = x - 10 * scale / 2;
+    const cy = y - 8 * scale;
+
+    if (!opened) {
+        // Chest body
+        ctx.fillStyle = '#6B4226';
+        ctx.fillRect(cx, cy + scale * 3, scale * 10, scale * 5);
+        // Chest lid
+        ctx.fillStyle = '#8B5A2B';
+        ctx.fillRect(cx, cy, scale * 10, scale * 4);
+        // Lid top highlight
+        ctx.fillStyle = '#A0682A';
+        ctx.fillRect(cx + scale, cy + scale, scale * 8, scale);
+        // Metal band
+        ctx.fillStyle = '#888';
+        ctx.fillRect(cx, cy + scale * 3, scale * 10, scale);
+        // Lock
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(cx + scale * 4, cy + scale * 3 - scale, scale * 2, scale * 2);
+    } else {
+        // Open chest body
+        ctx.fillStyle = '#6B4226';
+        ctx.fillRect(cx, cy + scale * 3, scale * 10, scale * 5);
+        // Open lid (flipped back)
+        ctx.fillStyle = '#8B5A2B';
+        ctx.fillRect(cx, cy - scale, scale * 10, scale * 3);
+        // Inside (dark interior)
+        ctx.fillStyle = '#1A0A00';
+        ctx.fillRect(cx + scale, cy + scale * 4, scale * 8, scale * 3);
+        // Metal band
+        ctx.fillStyle = '#888';
+        ctx.fillRect(cx, cy + scale * 3, scale * 10, scale);
+    }
+}
+
+// ── KEY ITEM SPRITE (for ITEM_SPRITES) ──
+// This is registered below in ITEM_SPRITES as 'key'

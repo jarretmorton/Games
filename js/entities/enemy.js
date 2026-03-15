@@ -1,4 +1,4 @@
-import { drawZombie } from '../rendering/sprites.js';
+import { drawZombie, drawSkeleton } from '../rendering/sprites.js';
 import { collidesWithMap } from '../engine/collision.js';
 
 export class Enemy {
@@ -10,12 +10,24 @@ export class Enemy {
         this.h = 16;
         this.active = true;
 
-        // Stats
+        // Stats (defaults for zombie)
         this.hp = 6;
         this.maxHp = 6;
         this.damage = 1;
         this.speed = 0.5;
         this.detectionRadius = 80;
+
+        // Skeleton archer overrides
+        if (type === 'dungeon_skeleton') {
+            this.hp = 5;
+            this.maxHp = 5;
+            this.damage = 1;
+            this.speed = 0.6;
+            this.detectionRadius = 120;
+            this.bowCooldown = 0;
+            this.bowShootSignal = false;
+            this.preferredRange = 80; // tries to stay this far from player
+        }
 
         // State
         this.state = 'idle'; // idle, chasing, attacking, hurt, dead
@@ -88,26 +100,57 @@ export class Enemy {
         }
 
         if (dist < this.detectionRadius) {
-            // Chase player
             this.state = 'chasing';
 
-            if (dist < 20 && this.attackCooldown <= 0) {
-                // Attack
-                this.state = 'attacking';
-                this.attackWindup++;
-                if (this.attackWindup > 15) {
-                    this.attackWindup = 0;
-                    this.attackCooldown = 60;
-                    this.state = 'chasing';
-                    return; // Signal to main loop to check hit
-                }
-            } else {
-                this.attackWindup = 0;
-                // Move toward player
+            if (this.type === 'dungeon_skeleton') {
+                // Skeleton archer: maintain distance, shoot arrows
+                if (this.bowCooldown > 0) this.bowCooldown--;
+
                 const nx = dx / dist;
                 const ny = dy / dist;
-                this.x += nx * this.speed;
-                this.y += ny * this.speed;
+
+                if (dist < this.preferredRange - 10) {
+                    // Too close - back away
+                    this.x -= nx * this.speed;
+                    this.y -= ny * this.speed;
+                } else if (dist > this.preferredRange + 20) {
+                    // Too far - approach
+                    this.x += nx * this.speed * 0.5;
+                    this.y += ny * this.speed * 0.5;
+                }
+
+                // Shoot when at good range and cooldown ready
+                if (this.bowCooldown <= 0 && dist <= this.detectionRadius) {
+                    this.bowCooldown = 90;
+                    this.bowShootSignal = true;
+                }
+
+                // Update facing based on player direction
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    this.facing = dx > 0 ? 'right' : 'left';
+                } else {
+                    this.facing = dy > 0 ? 'down' : 'up';
+                }
+            } else {
+                // Default: chase and melee attack
+                if (dist < 20 && this.attackCooldown <= 0) {
+                    // Attack
+                    this.state = 'attacking';
+                    this.attackWindup++;
+                    if (this.attackWindup > 15) {
+                        this.attackWindup = 0;
+                        this.attackCooldown = 60;
+                        this.state = 'chasing';
+                        return; // Signal to main loop to check hit
+                    }
+                } else {
+                    this.attackWindup = 0;
+                    // Move toward player
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+                    this.x += nx * this.speed;
+                    this.y += ny * this.speed;
+                }
             }
         } else {
             // Idle wander
@@ -157,11 +200,12 @@ export class Enemy {
     render(ctx) {
         if (!this.active) return;
 
+        const drawFn = this.type === 'dungeon_skeleton' ? drawSkeleton : drawZombie;
+
         // Death shrink
         if (this.state === 'dead') {
-            const alpha = 1 - this.deathTimer / 20;
             if (Math.floor(this.deathTimer / 2) % 2 === 0) {
-                drawZombie(ctx, this.x, this.y, this.animFrame, 2);
+                drawFn(ctx, this.x, this.y, this.animFrame, 2);
             }
             return;
         }
@@ -173,7 +217,7 @@ export class Enemy {
             return;
         }
 
-        drawZombie(ctx, this.x, this.y, this.animFrame, 2);
+        drawFn(ctx, this.x, this.y, this.animFrame, 2);
 
         // Health bar
         if (this.hp < this.maxHp) {

@@ -12,6 +12,10 @@ export const inventory = {
         }
         this.items.push({ ...itemDef });
         player.inventory = this.items;
+        // Auto-equip weapons and armor
+        if (itemDef.type === 'weapon' || itemDef.type === 'armor') {
+            this.equip(itemDef.id);
+        }
         return true;
     },
 

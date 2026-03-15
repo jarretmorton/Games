@@ -8,7 +8,7 @@ import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SP
 import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELETON_X, SKELETON_Y, CRAFTING_TABLE_COL, CRAFTING_TABLE_ROW } from './world/shopMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
-import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton } from './rendering/sprites.js';
+import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton, drawChest } from './rendering/sprites.js';
 import { createNPCs } from './entities/npc.js';
 import { npcData, shopkeeperData } from './data/npcs.js';
 import { dialogue } from './rendering/dialogue.js';
@@ -24,7 +24,7 @@ import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 
-export const VERSION = '0.7.1';
+export const VERSION = '0.8.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -47,6 +47,12 @@ let inDungeon = false;
 let inShop = false;
 let puzzleSolvedAnimation = 0;
 let dungeonCleared = false;
+
+// Dungeon chest (spawns after defeating skeleton)
+let dungeonChest = null;
+
+// Enemy arrows (skeleton archer projectiles)
+let enemyArrows = [];
 
 // Shop interior state
 let shopNpcs = [];
@@ -83,6 +89,8 @@ function startGame() {
     inShop = false;
     dungeonCleared = false;
     puzzleSolvedAnimation = 0;
+    dungeonChest = null;
+    enemyArrows = [];
     shopNpcs = createNPCs([shopkeeperData]);
     shopEnemies = [];
     shopSkeletonFreed = false;
@@ -266,6 +274,18 @@ function updatePlaying() {
         }
     }
 
+    // Auto-enter shop when player walks through the door tile
+    {
+        const playerCol = Math.floor(player.x / TILE_SIZE);
+        const playerRow = Math.floor(player.y / TILE_SIZE);
+        if (playerRow >= 0 && playerRow < townMap.length && playerCol >= 0 && playerCol < townMap[0].length) {
+            const tileId = townMap[playerRow][playerCol];
+            if (tileProps[tileId]?.interact === 'shop' && !transition.active) {
+                enterShop();
+            }
+        }
+    }
+
     // Check dungeon entrance
     if (puzzle.solved) {
         const dungeonCol = 5, dungeonRow = 24;
@@ -293,11 +313,16 @@ function updateDungeon() {
         if (!enemy.active) continue;
         enemy.update(player.x, player.y, dungeonMap);
 
-        // Enemy damages player
+        // Skeleton archer: spawn enemy arrow if signal set
+        if (enemy.bowShootSignal) {
+            enemy.bowShootSignal = false;
+            spawnEnemyArrow(enemy.x, enemy.y, player.x, player.y, enemy.damage);
+        }
+
+        // Melee enemy damages player
         if (enemy.canDamagePlayer(player.x, player.y)) {
             const blocked = player.takeDamage(enemy.damage);
             if (blocked) {
-                // Shield blocked the attack - bounce enemy back hard
                 applyKnockback(enemy, player.x, player.y, 8, 10);
                 enemy.hurtTimer = 10;
                 enemy.state = 'hurt';
@@ -306,12 +331,26 @@ function updateDungeon() {
         }
     }
 
+    // Update enemy arrows (skeleton archer projectiles)
+    updateEnemyArrows();
+
     // Check if player died
     if (checkPlayerDeath()) return;
 
     // Secondary action (B/ALT) - shield block
     if (input.secondary && !player.blocking) {
         player.startBlock();
+    }
+
+    // Chest interaction (before attack so action can open chest)
+    if (input.action && dungeonChest && !dungeonChest.opened) {
+        const dist = Math.abs(player.x - dungeonChest.x) + Math.abs(player.y - dungeonChest.y);
+        if (dist < 28) {
+            dungeonChest.opened = true;
+            inventory.add(itemDefs.key);
+            dialogue.start('', ['You opened the chest!', 'You found a Dungeon Key!']);
+            gameState.change(States.DIALOGUE);
+        }
     }
 
     // Player attacks enemy
@@ -324,12 +363,9 @@ function updateDungeon() {
                     enemy.takeDamage(player.equippedItem.damage, player.x, player.y);
                     if (enemy.hp <= 0 && !dungeonCleared) {
                         dungeonCleared = true;
-                        // Drop rewards after death animation
                         setTimeout(() => {
-                            player.emeralds += 10;
-                            inventory.add(itemDefs.diamond);
-                            player.hasDiamond = true;
-                            dialogue.start('', ['The zombie has been defeated!', 'You found a Diamond and 10 emeralds!']);
+                            spawnDungeonChest(enemy.x, enemy.y);
+                            dialogue.start('', ['The skeleton has been defeated!', 'A chest appeared...']);
                             gameState.change(States.DIALOGUE);
                         }, 400);
                     }
@@ -378,10 +414,11 @@ function enterDungeon() {
         camera.x = 0;
         camera.y = 0;
         if (!dungeonCleared) {
-            enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'zombie')];
+            enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
         } else {
             enemies = [];
         }
+        enemyArrows = [];
         music.play('dungeon');
     };
 }
@@ -401,6 +438,61 @@ function exitDungeon() {
         player.y = exitY;
         music.play('overworld');
     };
+}
+
+function spawnDungeonChest(x, y) {
+    dungeonChest = { x, y, opened: false };
+}
+
+function spawnEnemyArrow(fromX, fromY, toX, toY, damage) {
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const speed = 2.5;
+    let facing = 'down';
+    if (Math.abs(dx) > Math.abs(dy)) {
+        facing = dx > 0 ? 'right' : 'left';
+    } else {
+        facing = dy > 0 ? 'down' : 'up';
+    }
+    enemyArrows.push({
+        x: fromX,
+        y: fromY,
+        vx: (dx / len) * speed,
+        vy: (dy / len) * speed,
+        facing,
+        damage,
+        active: true,
+        life: 120,
+    });
+}
+
+function updateEnemyArrows() {
+    for (const arrow of enemyArrows) {
+        if (!arrow.active) continue;
+        arrow.x += arrow.vx;
+        arrow.y += arrow.vy;
+        arrow.life--;
+
+        if (arrow.life <= 0) { arrow.active = false; continue; }
+
+        // Solid tile collision
+        const col = Math.floor(arrow.x / TILE_SIZE);
+        const row = Math.floor(arrow.y / TILE_SIZE);
+        if (row < 0 || row >= dungeonMap.length || col < 0 || col >= dungeonMap[0].length) {
+            arrow.active = false; continue;
+        }
+        if (tileProps[dungeonMap[row][col]]?.solid) { arrow.active = false; continue; }
+
+        // Hit player
+        const dist = Math.abs(player.x - arrow.x) + Math.abs(player.y - arrow.y);
+        if (dist < 12) {
+            arrow.active = false;
+            const blocked = player.takeDamage(arrow.damage);
+            if (blocked) camera.shake(2, 6);
+        }
+    }
+    enemyArrows = enemyArrows.filter(a => a.active);
 }
 
 function enterShop() {
@@ -642,7 +734,8 @@ function respawnPlayer() {
         inDungeon = savePoint.inDungeon || false;
         inShop = savePoint.inShop || false;
         if (inDungeon && !dungeonCleared) {
-            enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'zombie')];
+            enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
+            enemyArrows = [];
         } else if (inDungeon) {
             enemies = [];
         }
@@ -775,11 +868,10 @@ function updateArrows(map) {
                 // Check for dungeon clear
                 if (enemy.hp <= 0 && !dungeonCleared && inDungeon) {
                     dungeonCleared = true;
+                    const ex = enemy.x, ey = enemy.y;
                     setTimeout(() => {
-                        player.emeralds += 10;
-                        inventory.add(itemDefs.diamond);
-                        player.hasDiamond = true;
-                        dialogue.start('', ['The zombie has been defeated!', 'You found a Diamond and 10 emeralds!']);
+                        spawnDungeonChest(ex, ey);
+                        dialogue.start('', ['The skeleton has been defeated!', 'A chest appeared...']);
                         gameState.change(States.DIALOGUE);
                     }, 400);
                 }
@@ -1067,9 +1159,26 @@ function renderDungeonScene() {
     for (const drop of drops) {
         if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
     }
-    // Arrows
+    // Player arrows
     for (const arrow of arrows) {
         if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
+    // Enemy arrows (skeleton archer)
+    for (const arrow of enemyArrows) {
+        if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
+    // Dungeon chest
+    if (dungeonChest) {
+        entities.push({ y: dungeonChest.y + 8, render: () => {
+            drawChest(ctx, dungeonChest.x, dungeonChest.y, dungeonChest.opened);
+            if (!dungeonChest.opened) {
+                const dist = Math.abs(player.x - dungeonChest.x) + Math.abs(player.y - dungeonChest.y);
+                if (dist < 28) {
+                    ctx.fillStyle = '#FFD700';
+                    drawSmallText(ctx, 'Press A to open', dungeonChest.x - 40, dungeonChest.y - 28);
+                }
+            }
+        }});
     }
 
     entities.sort((a, b) => a.y - b.y);
