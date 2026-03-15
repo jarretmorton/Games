@@ -51,6 +51,20 @@ export const itemDefs = {
         type: 'key_item',
         spriteId: 'diamond',
     },
+    dragon_breath: {
+        id: 'dragon_breath',
+        name: 'Dragon Breath Potion',
+        type: 'consumable',
+        cost: 5,
+        spriteId: 'dragon_breath',
+    },
+    golden_blueberry_jar: {
+        id: 'golden_blueberry_jar',
+        name: 'Golden Blueberries',
+        type: 'key_item',
+        notForSale: true,
+        spriteId: 'golden_blueberry_jar',
+    },
 };
 
 export const shopItems = [
@@ -59,4 +73,6 @@ export const shopItems = [
     itemDefs.iron_sword,
     itemDefs.bow,
     itemDefs.shield,
+    itemDefs.dragon_breath,
+    itemDefs.golden_blueberry_jar,
 ];

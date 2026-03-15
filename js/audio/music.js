@@ -102,6 +102,58 @@ const dungeonBass = [
     { note: NOTE.E3, dur: 2.0 }, { note: NOTE.REST, dur: 1.5 },
 ];
 
+// Shop theme - warm, cozy, medieval market feel
+const shopMelody = [
+    // Phrase 1 - Welcoming, bouncy melody
+    { note: NOTE.C4, dur: 0.5 }, { note: NOTE.E4, dur: 0.5 },
+    { note: NOTE.G4, dur: 0.75 }, { note: NOTE.E4, dur: 0.25 },
+    { note: NOTE.F4, dur: 0.5 }, { note: NOTE.A4, dur: 0.5 },
+    { note: NOTE.G4, dur: 1.0 }, { note: NOTE.REST, dur: 0.5 },
+    // Phrase 2 - Playful descending run
+    { note: NOTE.A4, dur: 0.5 }, { note: NOTE.G4, dur: 0.5 },
+    { note: NOTE.F4, dur: 0.5 }, { note: NOTE.E4, dur: 0.5 },
+    { note: NOTE.D4, dur: 0.75 }, { note: NOTE.C4, dur: 0.75 },
+    { note: NOTE.REST, dur: 0.5 },
+    // Phrase 3 - Rising hopeful motif
+    { note: NOTE.E4, dur: 0.5 }, { note: NOTE.F4, dur: 0.5 },
+    { note: NOTE.G4, dur: 0.5 }, { note: NOTE.A4, dur: 0.5 },
+    { note: NOTE.G4, dur: 1.0 }, { note: NOTE.E4, dur: 0.5 },
+    { note: NOTE.C4, dur: 1.0 }, { note: NOTE.REST, dur: 0.5 },
+    // Phrase 4 - Gentle ending
+    { note: NOTE.D4, dur: 0.5 }, { note: NOTE.E4, dur: 0.5 },
+    { note: NOTE.F4, dur: 0.5 }, { note: NOTE.E4, dur: 0.5 },
+    { note: NOTE.D4, dur: 0.75 }, { note: NOTE.C4, dur: 1.25 },
+    { note: NOTE.REST, dur: 1.0 },
+];
+
+const shopBass = [
+    { note: NOTE.C3, dur: 2.0 }, { note: NOTE.F3, dur: 2.0 },
+    { note: NOTE.G3, dur: 1.5 }, { note: NOTE.REST, dur: 0.5 },
+    { note: NOTE.A3, dur: 1.5 }, { note: NOTE.G3, dur: 1.0 },
+    { note: NOTE.F3, dur: 1.5 }, { note: NOTE.REST, dur: 0.5 },
+    { note: NOTE.C3, dur: 2.0 }, { note: NOTE.G3, dur: 1.5 },
+    { note: NOTE.F3, dur: 1.0 }, { note: NOTE.REST, dur: 0.5 },
+    { note: NOTE.G3, dur: 1.5 }, { note: NOTE.C3, dur: 2.0 },
+    { note: NOTE.REST, dur: 1.0 },
+];
+
+const shopArpeggio = [
+    // Gentle plucked lute-like arpeggios
+    { note: NOTE.C4, dur: 0.75 }, { note: NOTE.E4, dur: 0.75 },
+    { note: NOTE.G4, dur: 0.75 }, { note: NOTE.REST, dur: 0.25 },
+    { note: NOTE.F3, dur: 0.75 }, { note: NOTE.A3, dur: 0.75 },
+    { note: NOTE.C4, dur: 0.75 }, { note: NOTE.REST, dur: 0.25 },
+    { note: NOTE.G3, dur: 0.75 }, { note: NOTE.B3, dur: 0.75 },
+    { note: NOTE.D4, dur: 0.75 }, { note: NOTE.REST, dur: 0.25 },
+    { note: NOTE.A3, dur: 0.75 }, { note: NOTE.C4, dur: 0.75 },
+    { note: NOTE.E4, dur: 0.75 }, { note: NOTE.REST, dur: 0.25 },
+    { note: NOTE.F3, dur: 0.75 }, { note: NOTE.A3, dur: 0.75 },
+    { note: NOTE.C4, dur: 0.75 }, { note: NOTE.REST, dur: 0.25 },
+    { note: NOTE.G3, dur: 0.75 }, { note: NOTE.C4, dur: 0.75 },
+    { note: NOTE.E4, dur: 0.5 }, { note: NOTE.C4, dur: 0.5 },
+    { note: NOTE.REST, dur: 1.0 },
+];
+
 function initAudio() {
     if (audioCtx) return;
     audioCtx = new AudioContext();
@@ -181,6 +233,12 @@ export const music = {
             playLoop([
                 { notes: dungeonMelody, type: 'square', gain: 0.15 },
                 { notes: dungeonBass, type: 'sine', gain: 0.2 },
+            ], track);
+        } else if (track === 'shop') {
+            playLoop([
+                { notes: shopMelody, type: 'triangle', gain: 0.3 },
+                { notes: shopBass, type: 'sine', gain: 0.2 },
+                { notes: shopArpeggio, type: 'sine', gain: 0.1 },
             ], track);
         }
     },

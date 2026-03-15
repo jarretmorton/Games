@@ -82,3 +82,25 @@ export const npcData = [
         ]
     },
 ];
+
+// Shopkeeper NPC (inside the shop interior)
+export const shopkeeperData = {
+    id: 'shopkeeper',
+    name: 'Shopkeeper',
+    tileX: 5, tileY: 4,
+    facing: 'down',
+    palette: {
+        hair: '#8B4513',
+        skin: '#C4956A',
+        eye: '#333333',
+        nose: '#B0845A',
+        robe: '#8B0000',
+        shoe: '#333333',
+    },
+    dialogue: [
+        "Welcome to my shop! Take a look around!",
+        "I've got potions, weapons, and more!",
+        "That skeleton? Don't worry about him... he's harmless.",
+        "The golden blueberries? Sorry, those aren't for sale.",
+    ]
+};
