@@ -71,6 +71,12 @@ export const itemDefs = {
         notForSale: true,
         spriteId: 'golden_blueberry_jar',
     },
+    ender_pearl: {
+        id: 'ender_pearl',
+        name: 'Ender Pearl',
+        type: 'key_item',
+        spriteId: 'ender_pearl',
+    },
 };
 
 export const shopItems = [
