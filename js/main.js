@@ -4,7 +4,7 @@ import { gameState, States } from './state/gameState.js';
 import { camera } from './engine/camera.js';
 import { renderMap, updateTileAnimations } from './world/tilemap.js';
 import { townMap, SPAWN_X, SPAWN_Y, breakablePositions } from './world/townMap.js';
-import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y } from './world/dungeonMap.js';
+import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, LOCKED_DOOR_ROW, LOCKED_DOOR_COLS, ENDER_PEARL_X, ENDER_PEARL_Y } from './world/dungeonMap.js';
 import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELETON_X, SKELETON_Y, CRAFTING_TABLE_COL, CRAFTING_TABLE_ROW } from './world/shopMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
@@ -24,7 +24,7 @@ import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 
-export const VERSION = '0.8.0';
+export const VERSION = '0.9.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -50,6 +50,10 @@ let dungeonCleared = false;
 
 // Dungeon chest (spawns after defeating skeleton)
 let dungeonChest = null;
+
+// Locked chamber state
+let lockedRoomOpen = false;
+let enderPearlPickedUp = false;
 
 // Enemy arrows (skeleton archer projectiles)
 let enemyArrows = [];
@@ -91,6 +95,11 @@ function startGame() {
     puzzleSolvedAnimation = 0;
     dungeonChest = null;
     enemyArrows = [];
+    lockedRoomOpen = false;
+    enderPearlPickedUp = false;
+    // Reset locked door tiles in case a previous game opened them
+    dungeonMap[LOCKED_DOOR_ROW][LOCKED_DOOR_COLS[0]] = T.LOCKED_DOOR;
+    dungeonMap[LOCKED_DOOR_ROW][LOCKED_DOOR_COLS[1]] = T.LOCKED_DOOR;
     shopNpcs = createNPCs([shopkeeperData]);
     shopEnemies = [];
     shopSkeletonFreed = false;
@@ -348,7 +357,38 @@ function updateDungeon() {
         if (dist < 28) {
             dungeonChest.opened = true;
             inventory.add(itemDefs.key);
-            dialogue.start('', ['You opened the chest!', 'You found a Dungeon Key!']);
+            dialogue.start('', ['You opened the chest!', 'You found a Dungeon Key!', 'A heavy iron door was spotted to the north...']);
+            gameState.change(States.DIALOGUE);
+        }
+    }
+
+    // Locked chamber door interaction
+    const DOOR_CX = (LOCKED_DOOR_COLS[0] + 1) * 32; // center of both door tiles
+    const DOOR_CY = LOCKED_DOOR_ROW * 32 + 16;
+    if (!lockedRoomOpen) {
+        const doorDist = Math.abs(player.x - DOOR_CX) + Math.abs(player.y - DOOR_CY);
+        if (doorDist < 55 && input.action) {
+            if (inventory.has('key')) {
+                lockedRoomOpen = true;
+                dungeonMap[LOCKED_DOOR_ROW][LOCKED_DOOR_COLS[0]] = T.DUNGEON_FLOOR;
+                dungeonMap[LOCKED_DOOR_ROW][LOCKED_DOOR_COLS[1]] = T.DUNGEON_FLOOR;
+                inventory.remove('key');
+                dialogue.start('', ['The Dungeon Key turns with a deep clunk...', 'The ornate chamber has opened!']);
+                gameState.change(States.DIALOGUE);
+            } else if (doorDist < 40) {
+                dialogue.start('', ['The door is sealed shut.', 'It needs a special key...']);
+                gameState.change(States.DIALOGUE);
+            }
+        }
+    }
+
+    // Ender pearl interaction (only reachable once locked room open)
+    if (!enderPearlPickedUp) {
+        const epDist = Math.abs(player.x - ENDER_PEARL_X) + Math.abs(player.y - ENDER_PEARL_Y);
+        if (epDist < 28 && input.action) {
+            enderPearlPickedUp = true;
+            inventory.add(itemDefs.ender_pearl);
+            dialogue.start('', ['You found an Ender Pearl!', 'Its surface swirls with mysterious energy...', 'A relic from another world.']);
             gameState.change(States.DIALOGUE);
         }
     }
@@ -1177,6 +1217,59 @@ function renderDungeonScene() {
                     ctx.fillStyle = '#FFD700';
                     drawSmallText(ctx, 'Press A to open', dungeonChest.x - 40, dungeonChest.y - 28);
                 }
+            }
+        }});
+    }
+
+    // Locked door prompt
+    if (!lockedRoomOpen) {
+        const DOOR_CX = (LOCKED_DOOR_COLS[0] + 1) * 32; // center of both door tiles
+        const DOOR_CY = LOCKED_DOOR_ROW * 32 + 16;
+        entities.push({ y: DOOR_CY + 8, render: () => {
+            const doorDist = Math.abs(player.x - DOOR_CX) + Math.abs(player.y - DOOR_CY);
+            if (doorDist < 55) {
+                if (inventory.has('key')) {
+                    ctx.fillStyle = '#FFD700';
+                    drawSmallText(ctx, 'Press A to unlock', DOOR_CX - 49, DOOR_CY - 22);
+                } else {
+                    ctx.fillStyle = '#AA6666';
+                    drawSmallText(ctx, 'Needs a key', DOOR_CX - 31, DOOR_CY - 22);
+                }
+            }
+        }});
+    }
+
+    // Ender pearl (floating pedestal in locked room)
+    if (!enderPearlPickedUp) {
+        entities.push({ y: ENDER_PEARL_Y, render: () => {
+            // Pedestal base
+            const px = ENDER_PEARL_X;
+            const py = ENDER_PEARL_Y;
+            ctx.fillStyle = '#2A2050';
+            ctx.fillRect(px - 12, py + 4, 24, 8);
+            ctx.fillStyle = '#3A3060';
+            ctx.fillRect(px - 10, py + 2, 20, 6);
+            ctx.fillStyle = '#4A4070';
+            ctx.fillRect(px - 8, py, 16, 4);
+            // Pillar details
+            ctx.fillStyle = '#AA88EE';
+            ctx.fillRect(px - 11, py + 4, 2, 8);
+            ctx.fillRect(px + 9, py + 4, 2, 8);
+            // Magical glow beneath pearl
+            ctx.fillStyle = 'rgba(140, 80, 220, 0.35)';
+            ctx.fillRect(px - 10, py - 6, 20, 12);
+            // Draw ender pearl sprite (8x8 at scale 2 = 16x16)
+            drawItem(ctx, px - 8, py - 18, 'ender_pearl', 2);
+            // Floating sparkles
+            const t = Date.now() / 300;
+            ctx.fillStyle = '#CC88FF';
+            ctx.fillRect(px + Math.round(Math.sin(t) * 10) - 1, py - 14 + Math.round(Math.cos(t * 0.7) * 4), 2, 2);
+            ctx.fillRect(px + Math.round(Math.sin(t + 2) * 8) - 1, py - 10 + Math.round(Math.cos(t * 0.9 + 1) * 4), 2, 2);
+            // Interact prompt
+            const epDist = Math.abs(player.x - ENDER_PEARL_X) + Math.abs(player.y - ENDER_PEARL_Y);
+            if (epDist < 28) {
+                ctx.fillStyle = '#CC88FF';
+                drawSmallText(ctx, 'Press A to take', px - 43, py - 36);
             }
         }});
     }

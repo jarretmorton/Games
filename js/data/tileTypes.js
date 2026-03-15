@@ -40,6 +40,8 @@ export const T = {
     CRAFTING_TABLE: 35,
     SHOP_DESK: 36,
     SKELETON_CAGE: 37,
+    LOCKED_DOOR: 38,
+    FANCY_FLOOR: 39,
 };
 
 export const tileProps = {
@@ -81,4 +83,6 @@ export const tileProps = {
     [T.CRAFTING_TABLE]:   { solid: true,  color: '#8B5A2B', color2: '#6B4226', interact: 'crafting_table' },
     [T.SHOP_DESK]:        { solid: true,  color: '#6B4226', color2: '#5A3520' },
     [T.SKELETON_CAGE]:    { solid: true,  color: '#8B6914', color2: '#7A5C12' },
+    [T.LOCKED_DOOR]:      { solid: true,  color: '#2A1A0A', color2: '#1A0A00' },
+    [T.FANCY_FLOOR]:      { solid: false, color: '#1A1630', color2: '#120E24' },
 };

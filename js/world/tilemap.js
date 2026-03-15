@@ -268,6 +268,73 @@ function drawTile(ctx, tileId, props, x, y) {
     if (tileId === 37) { // T.SKELETON_CAGE
         // Just floor - the cage/skeleton is drawn as an entity overlay
     }
+
+    // Fancy enchanted floor
+    if (tileId === 39) { // T.FANCY_FLOOR
+        // Dark purple stone with magical inlay
+        ctx.fillStyle = '#1A1630';
+        ctx.fillRect(x, y, s, s);
+        // Stone block pattern
+        ctx.fillStyle = '#221A3A';
+        ctx.fillRect(x + 1, y + 1, 14, 14);
+        ctx.fillRect(x + 17, y + 17, 13, 13);
+        ctx.fillRect(x + 1, y + 17, 14, 13);
+        ctx.fillRect(x + 17, y + 1, 13, 14);
+        // Grout lines
+        ctx.fillStyle = '#0E0A1A';
+        ctx.fillRect(x + 15, y, 2, s);
+        ctx.fillRect(x, y + 15, s, 2);
+        // Magical rune dots (animated sparkle)
+        ctx.fillStyle = '#5533AA';
+        ctx.fillRect(x + 7, y + 7, 2, 2);
+        ctx.fillRect(x + 23, y + 23, 2, 2);
+        ctx.fillRect(x + 7, y + 23, 2, 2);
+        ctx.fillRect(x + 23, y + 7, 2, 2);
+        if (animFrame === 1) {
+            ctx.fillStyle = '#AA88EE';
+            ctx.fillRect(x + 7, y + 7, 2, 2);
+            ctx.fillRect(x + 23, y + 23, 2, 2);
+        } else {
+            ctx.fillStyle = '#AA88EE';
+            ctx.fillRect(x + 7, y + 23, 2, 2);
+            ctx.fillRect(x + 23, y + 7, 2, 2);
+        }
+    }
+
+    // Locked door
+    if (tileId === 38) { // T.LOCKED_DOOR
+        // Heavy iron-bound door
+        ctx.fillStyle = '#1A0A00';
+        ctx.fillRect(x, y, s, s);
+        // Door frame (stone)
+        ctx.fillStyle = '#3A3040';
+        ctx.fillRect(x + 2, y + 0, s - 4, s);
+        // Door panels
+        ctx.fillStyle = '#2A1E10';
+        ctx.fillRect(x + 4, y + 2, 10, 12);
+        ctx.fillRect(x + 18, y + 2, 10, 12);
+        ctx.fillRect(x + 4, y + 16, 10, 14);
+        ctx.fillRect(x + 18, y + 16, 10, 14);
+        // Metal bands
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(x + 2, y + 14, s - 4, 3);
+        ctx.fillRect(x + 2, y + 0, s - 4, 3);
+        ctx.fillRect(x + 14, y + 0, 4, s);
+        // Gold lock mechanism
+        ctx.fillStyle = '#CC9900';
+        ctx.fillRect(x + 11, y + 11, 10, 7);
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(x + 12, y + 12, 8, 5);
+        // Keyhole
+        ctx.fillStyle = '#1A0A00';
+        ctx.fillRect(x + 15, y + 13, 2, 3);
+        ctx.fillRect(x + 14, y + 15, 4, 2);
+        // Glow pulse from keyhole
+        if (animFrame === 1) {
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+            ctx.fillRect(x + 10, y + 9, 12, 10);
+        }
+    }
 }
 
 export function getTileAt(map, pixelX, pixelY) {
