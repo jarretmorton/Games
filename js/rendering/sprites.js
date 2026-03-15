@@ -422,7 +422,35 @@ export function drawBowDraw(ctx, x, y, facing, frame, totalFrames) {
 
     if (facing === 'down' || facing === 'up') {
         const dir = facing === 'down' ? 1 : -1;
-        // Bow arc (vertical orientation)
+        // Bow arc (horizontal, perpendicular to arrow direction)
+        ctx.fillStyle = bowColor;
+        ctx.fillRect(-6, -1, 12, 2);  // bow body
+        ctx.fillRect(-7, -2, 2, 1);   // bow tip left
+        ctx.fillRect(5, -2, 2, 1);    // bow tip right
+        ctx.fillRect(-7, 1, 2, 1);
+        ctx.fillRect(5, 1, 2, 1);
+
+        // Bowstring (pulled opposite to arrow: down→pulled up, up→pulled down)
+        ctx.strokeStyle = stringColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-6, -1);
+        ctx.lineTo(0, -1 - pullDist * dir);
+        ctx.lineTo(6, -1);
+        ctx.stroke();
+
+        // Arrow (on the string, pointing in facing direction)
+        if (progress < 0.9) {
+            ctx.fillStyle = arrowColor;
+            ctx.fillRect(-1, -1 - pullDist * dir, 2, 10 * dir);
+            // Arrow tip
+            ctx.fillStyle = arrowTip;
+            const tipY = -1 - pullDist * dir + 10 * dir;
+            ctx.fillRect(-2, tipY, 4, dir * 2);
+        }
+    } else {
+        const dir = facing === 'right' ? 1 : -1;
+        // Bow arc (vertical, perpendicular to arrow direction)
         ctx.fillStyle = bowColor;
         ctx.fillRect(-1, -6, 2, 12);  // bow body
         ctx.fillRect(-2, -7, 1, 2);   // bow tip top
@@ -430,7 +458,7 @@ export function drawBowDraw(ctx, x, y, facing, frame, totalFrames) {
         ctx.fillRect(0, -7, 1, 2);
         ctx.fillRect(0, 5, 1, 2);
 
-        // Bowstring (pulled back)
+        // Bowstring (pulled opposite to arrow: right→pulled left, left→pulled right)
         ctx.strokeStyle = stringColor;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -439,7 +467,7 @@ export function drawBowDraw(ctx, x, y, facing, frame, totalFrames) {
         ctx.lineTo(-1, 6);
         ctx.stroke();
 
-        // Arrow (on the string, pointing in facing direction)
+        // Arrow on string
         if (progress < 0.9) {
             ctx.fillStyle = arrowColor;
             ctx.fillRect(-1 - pullDist * dir, -1, 10 * dir, 2);
@@ -447,33 +475,6 @@ export function drawBowDraw(ctx, x, y, facing, frame, totalFrames) {
             ctx.fillStyle = arrowTip;
             const tipX = -1 - pullDist * dir + 10 * dir;
             ctx.fillRect(tipX, -2, dir * 2, 4);
-        }
-    } else {
-        const dir = facing === 'right' ? 1 : -1;
-        // Bow arc (horizontal orientation)
-        ctx.fillStyle = bowColor;
-        ctx.fillRect(-6, -1, 12, 2);  // bow body
-        ctx.fillRect(-7, -2, 2, 1);   // bow tip left
-        ctx.fillRect(5, -2, 2, 1);    // bow tip right
-        ctx.fillRect(-7, 1, 2, 1);
-        ctx.fillRect(5, 1, 2, 1);
-
-        // Bowstring (pulled back)
-        ctx.strokeStyle = stringColor;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(-6, -1);
-        ctx.lineTo(0, -1 + pullDist * dir);
-        ctx.lineTo(6, -1);
-        ctx.stroke();
-
-        // Arrow on string
-        if (progress < 0.9) {
-            ctx.fillStyle = arrowColor;
-            ctx.fillRect(-1, -1 + pullDist * dir - 5 * dir, 2, 10 * dir);
-            // Arrow tip
-            ctx.fillStyle = arrowTip;
-            ctx.fillRect(-2, -1 + pullDist * dir - 5 * dir - 2 * dir, 4, dir * 2);
         }
     }
 

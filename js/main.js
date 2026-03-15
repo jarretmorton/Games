@@ -23,7 +23,7 @@ import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -432,8 +432,23 @@ function updateDrops() {
             drop.vx *= 0.95; // friction
         }
         drop.vy += 0.1;
-        if (drop.vy > 0 && drop.type !== 'golden_blueberry') drop.vy = 0;
-        if (drop.type === 'golden_blueberry' && drop.vy > 2) drop.vy = 2;
+        if (drop.type === 'golden_blueberry') {
+            // Stop when blueberry lands back on grass after jumping
+            if (drop.vy > 0 && drop.y >= drop.groundY) {
+                const col = Math.floor(drop.x / TILE_SIZE);
+                const row = Math.floor(drop.y / TILE_SIZE);
+                if (row >= 0 && row < townMap.length && col >= 0 && col < townMap[0].length) {
+                    const tile = townMap[row][col];
+                    if (tile === T.GRASS || tile === T.DARK_GRASS) {
+                        drop.vy = 0;
+                        drop.vx = 0;
+                    }
+                }
+            }
+            if (drop.vy > 2) drop.vy = 2;
+        } else if (drop.vy > 0) {
+            drop.vy = 0;
+        }
 
         if (drop.timer > 10) {
             const dist = Math.abs(player.x - drop.x) + Math.abs(player.y - drop.y);
@@ -538,19 +553,19 @@ function updateArrows(map) {
 }
 
 function spawnDrop(x, y, drop) {
-    // Blueberry bounces southward away from house so it's accessible
     let dropX = x + (Math.random() - 0.5) * 16;
     let dropVx = 0;
     let dropVy = -2;
     if (drop.type === 'golden_blueberry') {
         dropVx = (Math.random() - 0.5) * 1.5;
-        dropVy = 1.5;  // Bounce south, away from the church
+        dropVy = -3;  // Jump upward out of the pot
     }
     drops.push({
         x: dropX,
         y: y - 8,
         vx: dropVx,
         vy: dropVy,
+        groundY: y,
         type: drop.type,
         amount: drop.amount || 0,
         timer: 0,
