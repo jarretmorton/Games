@@ -5,7 +5,7 @@ import { camera } from './engine/camera.js';
 import { renderMap, updateTileAnimations } from './world/tilemap.js';
 import { townMap, SPAWN_X, SPAWN_Y, breakablePositions } from './world/townMap.js';
 import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y } from './world/dungeonMap.js';
-import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELETON_X, SKELETON_Y, CRAFTING_TABLE_X, CRAFTING_TABLE_Y } from './world/shopMap.js';
+import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELETON_X, SKELETON_Y, CRAFTING_TABLE_COL, CRAFTING_TABLE_ROW } from './world/shopMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
 import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton } from './rendering/sprites.js';
@@ -24,7 +24,7 @@ import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 
-export const VERSION = '0.7.0';
+export const VERSION = '0.7.1';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -576,6 +576,13 @@ function checkNearShopInteract() {
         const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
         if (dist < 24) return true;
     }
+    // Check interactable tiles in the shop
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    if (row >= 0 && row < shopMap.length && col >= 0 && col < shopMap[0].length) {
+        const props = tileProps[shopMap[row][col]];
+        if (props?.interact) return true;
+    }
     return false;
 }
 
@@ -593,6 +600,20 @@ function tryShopInteract() {
                 gameState.change(States.DIALOGUE);
             }
             return;
+        }
+    }
+    // Check tile interactions in the shop
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    if (row >= 0 && row < shopMap.length && col >= 0 && col < shopMap[0].length) {
+        const tileId = shopMap[row][col];
+        const props = tileProps[tileId];
+        if (props?.interact === 'crafting_table') {
+            dialogue.start('Crafting Table', ['The grid hums with ancient energy...', 'Three across, three down. What could be combined here?']);
+            gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'shop_shelf') {
+            dialogue.start('Shopkeeper', ["Hey! Don't touch the merchandise!", "Those aren't for sale... yet."]);
+            gameState.change(States.DIALOGUE);
         }
     }
 }
@@ -1071,69 +1092,7 @@ function renderShopScene() {
 
     renderMap(ctx, shopMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
 
-    // Draw crafting table
-    const ctX = CRAFTING_TABLE_X * TILE_SIZE;
-    const ctY = CRAFTING_TABLE_Y * TILE_SIZE;
-    // Table body
-    ctx.fillStyle = '#6B4226';
-    ctx.fillRect(ctX + 2, ctY + 8, 28, 20);
-    ctx.fillStyle = '#8B5A2B';
-    ctx.fillRect(ctX + 4, ctY + 10, 24, 16);
-    // Crafting grid on top (3x3)
-    ctx.fillStyle = '#A0522D';
-    ctx.fillRect(ctX + 4, ctY + 2, 24, 8);
-    for (let gy = 0; gy < 3; gy++) {
-        for (let gx = 0; gx < 3; gx++) {
-            ctx.fillStyle = '#D2B48C';
-            ctx.fillRect(ctX + 6 + gx * 7, ctY + 3 + gy * 2, 5, 1);
-        }
-    }
-
-    // Draw potion shelves decoration on the bookshelf tiles (top-right)
-    // Row 1 shelves (col 9-10, row 1)
-    for (let sx = 9; sx <= 10; sx++) {
-        for (let sy = 1; sy <= 2; sy++) {
-            const shX = sx * TILE_SIZE;
-            const shY = sy * TILE_SIZE;
-            // Potion bottles on shelf
-            if (sy === 1) {
-                // Red potion
-                ctx.fillStyle = '#CC3333';
-                ctx.fillRect(shX + 4, shY + 14, 6, 10);
-                ctx.fillStyle = '#666';
-                ctx.fillRect(shX + 5, shY + 10, 4, 4);
-                // Blue potion
-                ctx.fillStyle = '#3366CC';
-                ctx.fillRect(shX + 16, shY + 14, 6, 10);
-                ctx.fillStyle = '#666';
-                ctx.fillRect(shX + 17, shY + 10, 4, 4);
-                // Green potion
-                if (sx === 10) {
-                    ctx.fillStyle = '#33CC33';
-                    ctx.fillRect(shX + 4, shY + 14, 6, 10);
-                    ctx.fillStyle = '#666';
-                    ctx.fillRect(shX + 5, shY + 10, 4, 4);
-                }
-            } else {
-                // Artifacts on lower shelf
-                // Crystal orb
-                ctx.fillStyle = '#8855CC';
-                ctx.fillRect(shX + 6, shY + 14, 8, 8);
-                ctx.fillStyle = '#AA77EE';
-                ctx.fillRect(shX + 8, shY + 16, 4, 4);
-                // Ancient scroll
-                if (sx === 10) {
-                    ctx.fillStyle = '#D4B896';
-                    ctx.fillRect(shX + 4, shY + 16, 10, 6);
-                    ctx.fillStyle = '#B8986A';
-                    ctx.fillRect(shX + 4, shY + 16, 2, 6);
-                    ctx.fillRect(shX + 12, shY + 16, 2, 6);
-                }
-            }
-        }
-    }
-
-    // Draw trapped skeleton (if not freed and not defeated)
+    // Draw trapped skeleton in cage (if not freed and not defeated)
     if (!shopSkeletonFreed && !shopSkeletonDefeated) {
         drawTrappedSkeleton(ctx, SKELETON_X, SKELETON_Y, shopSkeletonAnimFrame);
     }
@@ -1278,25 +1237,29 @@ function renderShopUI() {
         }
         drawItem(ctx, px + 8, y, item.spriteId, 2);
         const owned = inventory.has(item.id);
+        // Line 1: item name (full width)
         if (item.notForSale) {
             ctx.fillStyle = i === shop.selectedIndex ? '#FFCC00' : '#888';
-            drawSmallText(ctx, item.name, px + 28, y + 2);
-            ctx.fillStyle = '#CC8800';
-            drawSmallText(ctx, 'Not for sale', px + pw - 66, y + 2);
         } else if (owned) {
             ctx.fillStyle = '#666';
-            drawSmallText(ctx, item.name, px + 28, y + 2);
-            ctx.fillStyle = '#4CAF50';
-            drawSmallText(ctx, 'Owned', px + pw - 40, y + 2);
         } else {
             ctx.fillStyle = i === shop.selectedIndex ? '#FFCC00' : '#CCC';
-            drawSmallText(ctx, item.name, px + 28, y + 2);
-            ctx.fillStyle = player.emeralds >= item.cost ? '#3CB371' : '#CC3333';
-            drawSmallText(ctx, String(item.cost) + ' em', px + pw - 36, y + 2);
         }
+        drawSmallText(ctx, item.name, px + 28, y + 2);
+        // Line 2: stats on left, price/status on right
         ctx.fillStyle = '#888';
         if (item.damage) drawSmallText(ctx, 'Dmg:' + item.damage, px + 28, y + 10);
         if (item.defense) drawSmallText(ctx, 'Def:' + item.defense, px + 28, y + 10);
+        if (item.notForSale) {
+            ctx.fillStyle = '#CC8800';
+            drawSmallText(ctx, 'Not for sale', px + pw - 66, y + 10);
+        } else if (owned) {
+            ctx.fillStyle = '#4CAF50';
+            drawSmallText(ctx, 'Owned', px + pw - 40, y + 10);
+        } else {
+            ctx.fillStyle = player.emeralds >= item.cost ? '#3CB371' : '#CC3333';
+            drawSmallText(ctx, String(item.cost) + ' em', px + pw - 36, y + 10);
+        }
     }
 
     if (shop.messageTimer > 0) {

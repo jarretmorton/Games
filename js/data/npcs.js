@@ -87,8 +87,8 @@ export const npcData = [
 export const shopkeeperData = {
     id: 'shopkeeper',
     name: 'Shopkeeper',
-    tileX: 5, tileY: 4,
-    facing: 'down',
+    tileX: 1, tileY: 3,
+    facing: 'right',
     palette: {
         hair: '#8B4513',
         skin: '#C4956A',

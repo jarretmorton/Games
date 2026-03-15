@@ -246,6 +246,16 @@ export const music = {
     stop() {
         currentTrack = null;
         isPlaying = false;
+        // Fade out any currently playing notes by resetting the audio graph
+        if (audioCtx && masterGain) {
+            masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+            masterGain.gain.setValueAtTime(masterGain.gain.value, audioCtx.currentTime);
+            masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
+            // Restore gain after fade for next track
+            setTimeout(() => {
+                if (masterGain) masterGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            }, 200);
+        }
     },
 
     // Call on first user interaction to unlock audio
