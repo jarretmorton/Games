@@ -5,11 +5,12 @@ import { camera } from './engine/camera.js';
 import { renderMap, updateTileAnimations } from './world/tilemap.js';
 import { townMap, SPAWN_X, SPAWN_Y, breakablePositions } from './world/townMap.js';
 import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y } from './world/dungeonMap.js';
+import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELETON_X, SKELETON_Y, CRAFTING_TABLE_X, CRAFTING_TABLE_Y } from './world/shopMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
-import { drawCharacter, drawItem, drawArrow } from './rendering/sprites.js';
+import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton } from './rendering/sprites.js';
 import { createNPCs } from './entities/npc.js';
-import { npcData } from './data/npcs.js';
+import { npcData, shopkeeperData } from './data/npcs.js';
 import { dialogue } from './rendering/dialogue.js';
 import { createBreakables } from './entities/breakable.js';
 import { renderHUD } from './rendering/hud.js';
@@ -23,7 +24,7 @@ import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 
-export const VERSION = '0.6.0';
+export const VERSION = '0.7.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -43,11 +44,20 @@ let invSelectedIndex = 0;
 
 // State flags
 let inDungeon = false;
+let inShop = false;
 let puzzleSolvedAnimation = 0;
 let dungeonCleared = false;
 
+// Shop interior state
+let shopNpcs = [];
+let shopEnemies = [];
+let shopSkeletonFreed = false;
+let shopSkeletonDefeated = false;
+let shopSkeletonAnimFrame = 0;
+let shopSkeletonAnimTimer = 0;
+
 // Save point for respawning after death
-let savePoint = { x: SPAWN_X, y: SPAWN_Y, inDungeon: false };
+let savePoint = { x: SPAWN_X, y: SPAWN_Y, inDungeon: false, inShop: false };
 
 // Death screen
 let deathTimer = 0;
@@ -70,8 +80,20 @@ function startGame() {
     inventory.reset();
     puzzle.init();
     inDungeon = false;
+    inShop = false;
     dungeonCleared = false;
     puzzleSolvedAnimation = 0;
+    shopNpcs = createNPCs([shopkeeperData]);
+    shopEnemies = [];
+    shopSkeletonFreed = false;
+    shopSkeletonDefeated = false;
+
+    // Hook up weapon purchase callback to free the skeleton
+    shop.onWeaponPurchased = () => {
+        if (!shopSkeletonFreed && !shopSkeletonDefeated) {
+            shopSkeletonFreed = true;
+        }
+    };
 }
 
 function gameLoop(timestamp) {
@@ -125,6 +147,7 @@ function update() {
 
         case States.PLAYING:
             if (inDungeon) updateDungeon();
+            else if (inShop) updateShopInterior();
             else updatePlaying();
             break;
 
@@ -343,12 +366,13 @@ function updateDungeon() {
 
 function enterDungeon() {
     // Save position at dungeon entrance
-    savePoint = { x: DUNGEON_SPAWN_X, y: DUNGEON_SPAWN_Y, inDungeon: true };
+    savePoint = { x: DUNGEON_SPAWN_X, y: DUNGEON_SPAWN_Y, inDungeon: true, inShop: false };
     transition.active = true;
     transition.timer = 0;
     transition.maxTime = 20;
     transition.callback = () => {
         inDungeon = true;
+        inShop = false;
         player.x = DUNGEON_SPAWN_X;
         player.y = DUNGEON_SPAWN_Y;
         camera.x = 0;
@@ -366,16 +390,211 @@ function exitDungeon() {
     const exitX = 5 * TILE_SIZE + TILE_SIZE / 2;
     const exitY = 25 * TILE_SIZE + TILE_SIZE / 2;
     // Save position at dungeon exit
-    savePoint = { x: exitX, y: exitY, inDungeon: false };
+    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false };
     transition.active = true;
     transition.timer = 0;
     transition.maxTime = 20;
     transition.callback = () => {
         inDungeon = false;
+        inShop = false;
         player.x = exitX;
         player.y = exitY;
         music.play('overworld');
     };
+}
+
+function enterShop() {
+    // Save position outside the shop
+    savePoint = { x: player.x, y: player.y, inDungeon: false, inShop: false };
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inShop = true;
+        inDungeon = false;
+        player.x = SHOP_SPAWN_X;
+        player.y = SHOP_SPAWN_Y;
+        camera.x = 0;
+        camera.y = 0;
+        // Spawn skeleton enemy if freed and not defeated
+        if (shopSkeletonFreed && !shopSkeletonDefeated) {
+            shopEnemies = [new Enemy(SKELETON_X, SKELETON_Y, 'skeleton')];
+            shopEnemies[0].hp = 4;
+            shopEnemies[0].maxHp = 4;
+            shopEnemies[0].speed = 0.7;
+        } else {
+            shopEnemies = [];
+        }
+        music.play('shop');
+    };
+}
+
+function exitShop() {
+    const exitX = 8 * TILE_SIZE + TILE_SIZE / 2;
+    const exitY = 18 * TILE_SIZE + TILE_SIZE / 2;
+    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false };
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inShop = false;
+        player.x = exitX;
+        player.y = exitY;
+        music.play('overworld');
+    };
+}
+
+function updateShopInterior() {
+    updateTileAnimations();
+
+    // Animate trapped skeleton
+    shopSkeletonAnimTimer++;
+    if (shopSkeletonAnimTimer >= 30) {
+        shopSkeletonAnimTimer = 0;
+        shopSkeletonAnimFrame = (shopSkeletonAnimFrame + 1) % 2;
+    }
+
+    const solidEntities = [];
+    for (const npc of shopNpcs) {
+        solidEntities.push({ x: npc.collX, y: npc.collY, w: npc.w, h: npc.h, solid: true });
+    }
+
+    player.update(shopMap, solidEntities);
+
+    for (const npc of shopNpcs) npc.update();
+
+    // Enemy update and combat (skeleton)
+    for (const enemy of shopEnemies) {
+        if (!enemy.active) continue;
+        enemy.update(player.x, player.y, shopMap);
+
+        // Enemy damages player
+        if (enemy.canDamagePlayer(player.x, player.y)) {
+            const blocked = player.takeDamage(enemy.damage);
+            if (blocked) {
+                applyKnockback(enemy, player.x, player.y, 8, 10);
+                enemy.hurtTimer = 10;
+                enemy.state = 'hurt';
+                camera.shake(2, 8);
+            }
+        }
+    }
+
+    // Check if player died
+    if (checkPlayerDeath()) return;
+
+    // Secondary action - shield block
+    if (input.secondary && !player.blocking) {
+        player.startBlock();
+    }
+
+    // Player attacks enemy
+    if (input.action) {
+        // First check if near NPC or interactable
+        const nearInteract = checkNearShopInteract();
+
+        if (nearInteract) {
+            tryShopInteract();
+        } else if (player.equippedItem && player.equippedItem.type === 'weapon') {
+            if (player.attack()) {
+                const hitbox = player.getAttackHitbox();
+                if (hitbox) {
+                    const hits = checkAttackHits(hitbox, shopEnemies);
+                    for (const enemy of hits) {
+                        enemy.takeDamage(player.equippedItem.damage, player.x, player.y);
+                        if (enemy.hp <= 0 && !shopSkeletonDefeated) {
+                            shopSkeletonDefeated = true;
+                            setTimeout(() => {
+                                player.emeralds += 5;
+                                dialogue.start('', ['The skeleton has been defeated!', 'You found 5 emeralds!']);
+                                gameState.change(States.DIALOGUE);
+                            }, 400);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Try to attack without weapon (or try interact)
+            if (!player.attack()) {
+                tryShopInteract();
+            }
+        }
+    }
+
+    // Arrow projectile update
+    updateArrows(shopMap);
+
+    // Check if bow just released an arrow
+    if (player.bowReleased) {
+        player.bowReleased = false;
+        spawnArrow();
+    }
+
+    // Arrow hits skeleton
+    for (const arrow of arrows) {
+        if (!arrow.active) continue;
+        for (const enemy of shopEnemies) {
+            if (!enemy.active || enemy.state === 'dead') continue;
+            const ex = enemy.x - enemy.w / 2;
+            const ey = enemy.y - enemy.h / 2;
+            if (aabbOverlap(arrow.x - 3, arrow.y - 3, 6, 6, ex, ey, enemy.w, enemy.h)) {
+                enemy.takeDamage(arrow.damage, arrow.x, arrow.y);
+                arrow.active = false;
+                if (enemy.hp <= 0 && !shopSkeletonDefeated) {
+                    shopSkeletonDefeated = true;
+                    setTimeout(() => {
+                        player.emeralds += 5;
+                        dialogue.start('', ['The skeleton has been defeated!', 'You found 5 emeralds!']);
+                        gameState.change(States.DIALOGUE);
+                    }, 400);
+                }
+                break;
+            }
+        }
+    }
+
+    updateDrops();
+
+    camera.follow(player.x, player.y, shopMap[0].length, shopMap.length);
+    camera.update();
+
+    // Exit shop - walk south through the door
+    const playerRow = Math.floor(player.y / TILE_SIZE);
+    if (playerRow >= shopMap.length - 1) {
+        exitShop();
+    }
+
+    if (input.inventory) {
+        invSelectedIndex = 0;
+        gameState.change(States.INVENTORY);
+    }
+}
+
+function checkNearShopInteract() {
+    const point = player.getInteractPoint();
+    for (const npc of shopNpcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) return true;
+    }
+    return false;
+}
+
+function tryShopInteract() {
+    const point = player.getInteractPoint();
+    for (const npc of shopNpcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) {
+            if (npc.id === 'shopkeeper') {
+                // Open the buy menu
+                shop.open();
+                gameState.change(States.SHOP);
+            } else {
+                dialogue.start(npc.name, [npc.getNextDialogue()]);
+                gameState.change(States.DIALOGUE);
+            }
+            return;
+        }
+    }
 }
 
 function checkPlayerDeath() {
@@ -399,13 +618,22 @@ function respawnPlayer() {
         player.invincibleTimer = 60;
         player.x = savePoint.x;
         player.y = savePoint.y;
-        inDungeon = savePoint.inDungeon;
+        inDungeon = savePoint.inDungeon || false;
+        inShop = savePoint.inShop || false;
         if (inDungeon && !dungeonCleared) {
             enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'zombie')];
         } else if (inDungeon) {
             enemies = [];
         }
-        music.play(inDungeon ? 'dungeon' : 'overworld');
+        if (inShop && shopSkeletonFreed && !shopSkeletonDefeated) {
+            shopEnemies = [new Enemy(SKELETON_X, SKELETON_Y, 'skeleton')];
+            shopEnemies[0].hp = 4;
+            shopEnemies[0].maxHp = 4;
+            shopEnemies[0].speed = 0.7;
+        } else if (inShop) {
+            shopEnemies = [];
+        }
+        music.play(inDungeon ? 'dungeon' : (inShop ? 'shop' : 'overworld'));
         gameState.change(States.PLAYING);
     };
 }
@@ -610,8 +838,7 @@ function tryInteract() {
         const props = tileProps[tileId];
 
         if (props?.interact === 'shop') {
-            shop.open();
-            gameState.change(States.SHOP);
+            enterShop();
         } else if (props?.interact === 'tablet') {
             dialogue.start('Stone Tablet', ['Place the dark stones upon the marks of power.', 'The path below shall open.']);
             gameState.change(States.DIALOGUE);
@@ -644,7 +871,22 @@ function updateShop() {
     shop.update();
     if (input.upPressed) shop.moveSelection(-1);
     if (input.downPressed) shop.moveSelection(1);
-    if (input.action) shop.buy();
+    if (input.action) {
+        shop.buy();
+        // Check if skeleton was freed during this purchase
+        if (shopSkeletonFreed && shopEnemies.length === 0 && !shopSkeletonDefeated) {
+            // Close shop and trigger skeleton escape
+            gameState.change(States.PLAYING);
+            shopEnemies = [new Enemy(SKELETON_X, SKELETON_Y, 'skeleton')];
+            shopEnemies[0].hp = 4;
+            shopEnemies[0].maxHp = 4;
+            shopEnemies[0].speed = 0.7;
+            shopEnemies[0].damage = 1;
+            dialogue.start('', ['The skeleton has broken free from its cage!']);
+            gameState.change(States.DIALOGUE);
+            return;
+        }
+    }
     if (input.cancel) gameState.change(States.PLAYING);
 }
 
@@ -661,6 +903,7 @@ function render() {
         case States.INVENTORY:
         case States.SHOP:
             if (inDungeon) renderDungeonScene();
+            else if (inShop) renderShopScene();
             else renderTownScene();
             if (gameState.current === States.DIALOGUE) dialogue.render(ctx);
             if (gameState.current === States.INVENTORY) renderInventoryUI();
@@ -819,6 +1062,139 @@ function renderDungeonScene() {
     drawSmallText(ctx, 'The Mine', VIRTUAL_WIDTH / 2 - 24, 2);
 }
 
+function renderShopScene() {
+    const camX = camera.getDrawX();
+    const camY = camera.getDrawY();
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    renderMap(ctx, shopMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
+
+    // Draw crafting table
+    const ctX = CRAFTING_TABLE_X * TILE_SIZE;
+    const ctY = CRAFTING_TABLE_Y * TILE_SIZE;
+    // Table body
+    ctx.fillStyle = '#6B4226';
+    ctx.fillRect(ctX + 2, ctY + 8, 28, 20);
+    ctx.fillStyle = '#8B5A2B';
+    ctx.fillRect(ctX + 4, ctY + 10, 24, 16);
+    // Crafting grid on top (3x3)
+    ctx.fillStyle = '#A0522D';
+    ctx.fillRect(ctX + 4, ctY + 2, 24, 8);
+    for (let gy = 0; gy < 3; gy++) {
+        for (let gx = 0; gx < 3; gx++) {
+            ctx.fillStyle = '#D2B48C';
+            ctx.fillRect(ctX + 6 + gx * 7, ctY + 3 + gy * 2, 5, 1);
+        }
+    }
+
+    // Draw potion shelves decoration on the bookshelf tiles (top-right)
+    // Row 1 shelves (col 9-10, row 1)
+    for (let sx = 9; sx <= 10; sx++) {
+        for (let sy = 1; sy <= 2; sy++) {
+            const shX = sx * TILE_SIZE;
+            const shY = sy * TILE_SIZE;
+            // Potion bottles on shelf
+            if (sy === 1) {
+                // Red potion
+                ctx.fillStyle = '#CC3333';
+                ctx.fillRect(shX + 4, shY + 14, 6, 10);
+                ctx.fillStyle = '#666';
+                ctx.fillRect(shX + 5, shY + 10, 4, 4);
+                // Blue potion
+                ctx.fillStyle = '#3366CC';
+                ctx.fillRect(shX + 16, shY + 14, 6, 10);
+                ctx.fillStyle = '#666';
+                ctx.fillRect(shX + 17, shY + 10, 4, 4);
+                // Green potion
+                if (sx === 10) {
+                    ctx.fillStyle = '#33CC33';
+                    ctx.fillRect(shX + 4, shY + 14, 6, 10);
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(shX + 5, shY + 10, 4, 4);
+                }
+            } else {
+                // Artifacts on lower shelf
+                // Crystal orb
+                ctx.fillStyle = '#8855CC';
+                ctx.fillRect(shX + 6, shY + 14, 8, 8);
+                ctx.fillStyle = '#AA77EE';
+                ctx.fillRect(shX + 8, shY + 16, 4, 4);
+                // Ancient scroll
+                if (sx === 10) {
+                    ctx.fillStyle = '#D4B896';
+                    ctx.fillRect(shX + 4, shY + 16, 10, 6);
+                    ctx.fillStyle = '#B8986A';
+                    ctx.fillRect(shX + 4, shY + 16, 2, 6);
+                    ctx.fillRect(shX + 12, shY + 16, 2, 6);
+                }
+            }
+        }
+    }
+
+    // Draw trapped skeleton (if not freed and not defeated)
+    if (!shopSkeletonFreed && !shopSkeletonDefeated) {
+        drawTrappedSkeleton(ctx, SKELETON_X, SKELETON_Y, shopSkeletonAnimFrame);
+    }
+
+    // Collect entities for Y-sort
+    const entities = [];
+    for (const npc of shopNpcs) {
+        entities.push({ y: npc.y, render: () => npc.render(ctx) });
+    }
+    entities.push({ y: player.y, render: () => player.render(ctx) });
+
+    // Shop enemies (freed skeleton)
+    for (const enemy of shopEnemies) {
+        if (enemy.active) {
+            entities.push({ y: enemy.y, render: () => {
+                if (enemy.state === 'dead') {
+                    const alpha = 1 - enemy.deathTimer / 20;
+                    if (Math.floor(enemy.deathTimer / 2) % 2 === 0) {
+                        drawSkeleton(ctx, enemy.x, enemy.y, enemy.animFrame, 2);
+                    }
+                } else if (enemy.hitFlashTimer > 0 && enemy.hitFlashTimer % 2 === 0) {
+                    ctx.fillStyle = '#FFF';
+                    ctx.fillRect(enemy.x - 8, enemy.y - 20, 16, 24);
+                } else {
+                    drawSkeleton(ctx, enemy.x, enemy.y, enemy.animFrame, 2);
+                    // Health bar
+                    if (enemy.hp < enemy.maxHp) {
+                        const barW = 20;
+                        const barH = 3;
+                        const barX = enemy.x - barW / 2;
+                        const barY = enemy.y - 24;
+                        ctx.fillStyle = '#333';
+                        ctx.fillRect(barX, barY, barW, barH);
+                        ctx.fillStyle = '#CC2222';
+                        ctx.fillRect(barX, barY, barW * (enemy.hp / enemy.maxHp), barH);
+                    }
+                }
+            }});
+        }
+    }
+
+    // Drops
+    for (const drop of drops) {
+        if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
+    }
+    // Arrows
+    for (const arrow of arrows) {
+        if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
+
+    entities.sort((a, b) => a.y - b.y);
+    for (const ent of entities) ent.render();
+
+    ctx.restore();
+    renderHUD(ctx, player);
+
+    // Shop label
+    ctx.fillStyle = '#888';
+    drawSmallText(ctx, "Blacksmith's Shop", VIRTUAL_WIDTH / 2 - 51, 2);
+}
+
 function renderDrop(ctx, drop) {
     if (drop.type === 'emerald') {
         ctx.fillStyle = '#2D8B46';
@@ -895,19 +1271,26 @@ function renderShopUI() {
 
     for (let i = 0; i < shop.items.length; i++) {
         const item = shop.items[i];
-        const y = py + 22 + i * 24;
+        const y = py + 22 + i * 20;
         if (i === shop.selectedIndex) {
             ctx.fillStyle = '#333355';
-            ctx.fillRect(px + 4, y - 2, pw - 8, 22);
+            ctx.fillRect(px + 4, y - 2, pw - 8, 18);
         }
         drawItem(ctx, px + 8, y, item.spriteId, 2);
         const owned = inventory.has(item.id);
-        ctx.fillStyle = owned ? '#666' : (i === shop.selectedIndex ? '#FFCC00' : '#CCC');
-        drawSmallText(ctx, item.name, px + 28, y + 2);
-        if (owned) {
+        if (item.notForSale) {
+            ctx.fillStyle = i === shop.selectedIndex ? '#FFCC00' : '#888';
+            drawSmallText(ctx, item.name, px + 28, y + 2);
+            ctx.fillStyle = '#CC8800';
+            drawSmallText(ctx, 'Not for sale', px + pw - 66, y + 2);
+        } else if (owned) {
+            ctx.fillStyle = '#666';
+            drawSmallText(ctx, item.name, px + 28, y + 2);
             ctx.fillStyle = '#4CAF50';
             drawSmallText(ctx, 'Owned', px + pw - 40, y + 2);
         } else {
+            ctx.fillStyle = i === shop.selectedIndex ? '#FFCC00' : '#CCC';
+            drawSmallText(ctx, item.name, px + 28, y + 2);
             ctx.fillStyle = player.emeralds >= item.cost ? '#3CB371' : '#CC3333';
             drawSmallText(ctx, String(item.cost) + ' em', px + pw - 36, y + 2);
         }

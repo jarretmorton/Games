@@ -8,6 +8,9 @@ export const shop = {
     message: '',
     messageTimer: 0,
 
+    // Callback when a weapon (sword/bow) is purchased
+    onWeaponPurchased: null,
+
     open() {
         this.selectedIndex = 0;
         this.message = '';
@@ -23,6 +26,12 @@ export const shop = {
     buy() {
         const item = this.items[this.selectedIndex];
         if (!item) return;
+
+        if (item.notForSale) {
+            this.message = 'Not for sale!';
+            this.messageTimer = 60;
+            return;
+        }
 
         if (inventory.has(item.id)) {
             this.message = 'Already owned!';
@@ -40,6 +49,11 @@ export const shop = {
         inventory.add(item);
         this.message = 'Purchased ' + item.name + '!';
         this.messageTimer = 60;
+
+        // Check if a weapon was purchased (sword or bow)
+        if (item.type === 'weapon' && this.onWeaponPurchased) {
+            this.onWeaponPurchased(item);
+        }
     },
 
     update() {

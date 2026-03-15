@@ -759,6 +759,26 @@ const ITEM_SPRITES = {
         [0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
     ],
+    dragon_breath: [
+        [0, 0, 0, '#666', 0, 0, 0, 0],
+        [0, 0, '#666','#888','#666', 0, 0, 0],
+        [0, '#555','#FF4400','#FF6600','#555', 0, 0, 0],
+        [0, '#555','#FF6600','#FFAA00','#555', 0, 0, 0],
+        [0, '#555','#FF4400','#FF6600','#555', 0, 0, 0],
+        [0, '#555','#CC3300','#FF4400','#555', 0, 0, 0],
+        [0, 0, '#555','#555', 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+    golden_blueberry_jar: [
+        [0, 0, '#8B6914','#8B6914', 0, 0, 0, 0],
+        [0, '#6B4226','#AAA','#AAA','#6B4226', 0, 0, 0],
+        [0, '#6B4226','#FFD700','#4444CC','#6B4226', 0, 0, 0],
+        [0, '#6B4226','#4444CC','#FFD700','#6B4226', 0, 0, 0],
+        [0, '#6B4226','#FFD700','#4444CC','#6B4226', 0, 0, 0],
+        [0, 0, '#6B4226','#6B4226', 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
 };
 
 export function drawItem(ctx, x, y, itemId, scale = 2) {
@@ -879,4 +899,75 @@ export function drawZombie(ctx, x, y, animFrame, scale = 2) {
     const offsetX = x - (12 * scale) / 2;
     const offsetY = y - (16 * scale) + 8;
     drawPixelGrid(ctx, offsetX, offsetY, scale, resolved);
+}
+
+// ── SKELETON SPRITE (12x16) ──
+const sol = '#111111';
+const sbn = '#CCCCBB'; // skeleton bone
+const sbh = '#DDDDCC'; // bone highlight
+const sbd = '#999988'; // bone dark/shadow
+const sey = '#CC1111'; // red eyes
+
+const SKELETON_DOWN_0 = [
+    [ _,   _,   _, sol, sol, sol, sol, sol, sol,  _,   _,   _],
+    [ _,   _, sol, sbn, sbn, sbn, sbn, sbn, sbn, sol,  _,   _],
+    [ _, sol, sbn, sbh, sbn, sbn, sbn, sbn, sbh, sbn, sol,  _],
+    [ _, sol, sbn, sbn, sbn, sbn, sbn, sbn, sbn, sbn, sol,  _],
+    [ _, sol, sbd, sey, sbd, sbn, sbn, sey, sbd, sbn, sol,  _],
+    [ _, sol, sbn, sbn, sbn, sbd, sbd, sbn, sbn, sbn, sol,  _],
+    [ _,  _, sol, sbn, sbd, sol, sol, sbd, sbn, sol,  _,   _],
+    [ _,  _,  _, sol, sol, sbn, sbn, sol, sol,  _,   _,   _],
+    [ _,  _, sol, sbn, sbn, sbn, sbn, sbn, sbn, sol,  _,   _],
+    [ _, sol, sbn, sbd, sbn, sbn, sbn, sbn, sbd, sbn, sol,  _],
+    [ _,  _, sol, sbn, sbn, sbn, sbn, sbn, sbn, sol,  _,   _],
+    [ _,  _,  _, sol, sbn, sol, sol, sbn, sol,  _,   _,   _],
+    [ _,  _, sol, sbn, sol,  _,  _, sol, sbn, sol,  _,   _],
+    [ _,  _, sol, sbn, sol,  _,  _, sol, sbn, sol,  _,   _],
+    [ _,  _,  _, sol, sol,  _,  _, sol, sol,  _,   _,   _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,   _,   _],
+];
+
+const SKELETON_DOWN_1 = [
+    [ _,   _,   _, sol, sol, sol, sol, sol, sol,  _,   _,   _],
+    [ _,   _, sol, sbn, sbn, sbn, sbn, sbn, sbn, sol,  _,   _],
+    [ _, sol, sbn, sbh, sbn, sbn, sbn, sbn, sbh, sbn, sol,  _],
+    [ _, sol, sbn, sbn, sbn, sbn, sbn, sbn, sbn, sbn, sol,  _],
+    [ _, sol, sbd, sey, sbd, sbn, sbn, sey, sbd, sbn, sol,  _],
+    [ _, sol, sbn, sbn, sbn, sbd, sbd, sbn, sbn, sbn, sol,  _],
+    [ _,  _, sol, sbn, sbd, sol, sol, sbd, sbn, sol,  _,   _],
+    [ _,  _,  _, sol, sol, sbn, sbn, sol, sol,  _,   _,   _],
+    [ _,  _, sol, sbn, sbn, sbn, sbn, sbn, sbn, sol,  _,   _],
+    [ _,  _, sol, sbd, sbn, sbn, sbn, sbn, sbd, sol, sbn,  _],
+    [ _, sbn, sol, sbn, sbn, sbn, sbn, sbn, sbn, sol,  _,   _],
+    [ _,  _,  _, sol, sbn, sol, sol, sbn, sol,  _,   _,   _],
+    [ _,  _, sol, sbn,  _,  _,  _,  _, sbn, sol,  _,   _],
+    [ _,  _, sol, sbn,  _,  _,  _,  _, sbn, sol,  _,   _],
+    [ _,  _,  _, sol,  _,  _,  _,  _, sol,  _,   _,   _],
+    [ _,  _,  _,  _,  _,  _,  _,  _,  _,  _,   _,   _],
+];
+
+export function drawSkeleton(ctx, x, y, animFrame, scale = 2) {
+    const frames = [SKELETON_DOWN_0, SKELETON_DOWN_1];
+    const grid = frames[animFrame % 2];
+    const resolved = grid.map(row => row.map(c => c === 0 ? null : c));
+    const offsetX = x - (12 * scale) / 2;
+    const offsetY = y - (16 * scale) + 8;
+    drawPixelGrid(ctx, offsetX, offsetY, scale, resolved);
+}
+
+// Draw skeleton trapped (with chains/cage bars)
+export function drawTrappedSkeleton(ctx, x, y, animFrame) {
+    // Draw cage bars first (behind skeleton)
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(x - 16, y - 24, 2, 40);
+    ctx.fillRect(x + 14, y - 24, 2, 40);
+    ctx.fillRect(x - 8, y - 24, 2, 40);
+    ctx.fillRect(x + 6, y - 24, 2, 40);
+    // Horizontal bars
+    ctx.fillStyle = '#444444';
+    ctx.fillRect(x - 16, y - 24, 32, 2);
+    ctx.fillRect(x - 16, y + 14, 32, 2);
+
+    // Draw skeleton inside
+    drawSkeleton(ctx, x, y, animFrame, 2);
 }
