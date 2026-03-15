@@ -34,6 +34,12 @@ export const T = {
     TORCH: 29,
     DUNGEON_WALL: 30,
     DUNGEON_FLOOR: 31,
+    SHOP_WALL: 32,
+    SHOP_FLOOR: 33,
+    SHOP_SHELF: 34,
+    CRAFTING_TABLE: 35,
+    SHOP_DESK: 36,
+    SKELETON_CAGE: 37,
 };
 
 export const tileProps = {
@@ -69,4 +75,10 @@ export const tileProps = {
     [T.TORCH]:            { solid: false, color: '#333333', color2: '#222222', decor: '#FF8800' },
     [T.DUNGEON_WALL]:     { solid: true,  color: '#3A3A3A', color2: '#2A2A2A' },
     [T.DUNGEON_FLOOR]:    { solid: false, color: '#4A4A4A', color2: '#3D3D3D' },
+    [T.SHOP_WALL]:        { solid: true,  color: '#6B4226', color2: '#5A3520' },
+    [T.SHOP_FLOOR]:       { solid: false, color: '#8B6914', color2: '#7A5C12' },
+    [T.SHOP_SHELF]:       { solid: true,  color: '#6B4226', color2: '#5A3520', interact: 'shop_shelf' },
+    [T.CRAFTING_TABLE]:   { solid: true,  color: '#8B5A2B', color2: '#6B4226', interact: 'crafting_table' },
+    [T.SHOP_DESK]:        { solid: true,  color: '#6B4226', color2: '#5A3520' },
+    [T.SKELETON_CAGE]:    { solid: true,  color: '#8B6914', color2: '#7A5C12' },
 };

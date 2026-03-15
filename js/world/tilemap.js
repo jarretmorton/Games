@@ -196,6 +196,78 @@ function drawTile(ctx, tileId, props, x, y) {
         ctx.fillRect(x + 10, y + 13, 12, 2);
         ctx.fillRect(x + 10, y + 18, 12, 2);
     }
+
+    // Shop shelf (potions and artifacts)
+    if (props.interact === 'shop_shelf') {
+        // Wooden shelf backing
+        ctx.fillStyle = '#5A3520';
+        ctx.fillRect(x, y, s, s);
+        ctx.fillStyle = '#6B4226';
+        ctx.fillRect(x + 2, y + 2, s - 4, s - 4);
+        // Shelf planks
+        ctx.fillStyle = '#7A5C12';
+        ctx.fillRect(x + 1, y + 14, s - 2, 2);
+        // Top shelf items - potions
+        ctx.fillStyle = '#CC3333'; // red potion
+        ctx.fillRect(x + 4, y + 4, 5, 9);
+        ctx.fillStyle = '#666';
+        ctx.fillRect(x + 5, y + 2, 3, 3);
+        ctx.fillStyle = '#3366CC'; // blue potion
+        ctx.fillRect(x + 14, y + 4, 5, 9);
+        ctx.fillStyle = '#666';
+        ctx.fillRect(x + 15, y + 2, 3, 3);
+        ctx.fillStyle = '#33CC33'; // green potion
+        ctx.fillRect(x + 24, y + 5, 4, 8);
+        ctx.fillStyle = '#666';
+        ctx.fillRect(x + 25, y + 3, 2, 3);
+        // Bottom shelf items - artifacts
+        ctx.fillStyle = '#8855CC'; // crystal orb
+        ctx.fillRect(x + 5, y + 18, 7, 7);
+        ctx.fillStyle = '#AA77EE';
+        ctx.fillRect(x + 7, y + 20, 3, 3);
+        ctx.fillStyle = '#D4B896'; // scroll
+        ctx.fillRect(x + 18, y + 20, 8, 5);
+        ctx.fillStyle = '#B8986A';
+        ctx.fillRect(x + 18, y + 20, 2, 5);
+        ctx.fillRect(x + 24, y + 20, 2, 5);
+    }
+
+    // Crafting table
+    if (props.interact === 'crafting_table') {
+        ctx.fillStyle = '#5A3520';
+        ctx.fillRect(x, y, s, s);
+        ctx.fillStyle = '#8B5A2B';
+        ctx.fillRect(x + 2, y + 2, s - 4, s - 4);
+        // 3x3 crafting grid
+        for (let gy = 0; gy < 3; gy++) {
+            for (let gx = 0; gx < 3; gx++) {
+                ctx.fillStyle = '#D2B48C';
+                ctx.fillRect(x + 5 + gx * 8, y + 5 + gy * 8, 6, 6);
+                ctx.fillStyle = '#A0522D';
+                ctx.fillRect(x + 6 + gx * 8, y + 6 + gy * 8, 4, 4);
+            }
+        }
+    }
+
+    // Shop desk
+    if (tileId === 36) { // T.SHOP_DESK
+        ctx.fillStyle = '#5A3520';
+        ctx.fillRect(x, y, s, s);
+        ctx.fillStyle = '#6B4226';
+        ctx.fillRect(x + 2, y + 4, s - 4, s - 8);
+        ctx.fillStyle = '#8B6914';
+        ctx.fillRect(x + 4, y + 6, s - 8, 4);
+        // Emerald on desk
+        ctx.fillStyle = '#2D8B46';
+        ctx.fillRect(x + 14, y + 16, 6, 6);
+        ctx.fillStyle = '#5FD394';
+        ctx.fillRect(x + 15, y + 17, 4, 4);
+    }
+
+    // Skeleton cage floor
+    if (tileId === 37) { // T.SKELETON_CAGE
+        // Just floor - the cage/skeleton is drawn as an entity overlay
+    }
 }
 
 export function getTileAt(map, pixelX, pixelY) {
