@@ -1,7 +1,9 @@
 # ZCraft Development Guidelines
 
 ## After Coding
-- Always generate a PR link after completing coding tasks.
+- ALWAYS provide a PR link after completing any coding task, no exceptions.
+- PR link format: `https://github.com/jarretmorton/Games/pull/new/<branch-name>`
+- The branch name follows the pattern `claude/<feature>-<sessionId>`.
 
 ## Versioning
 - Advance the version number in `js/main.js` (the `VERSION` export) after each update.
