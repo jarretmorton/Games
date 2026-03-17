@@ -1,5 +1,6 @@
 export const States = {
     TITLE: 'TITLE',
+    NAME_ENTRY: 'NAME_ENTRY',
     CHARACTER_SELECT: 'CHARACTER_SELECT',
     PLAYING: 'PLAYING',
     DIALOGUE: 'DIALOGUE',
@@ -8,7 +9,10 @@ export const States = {
     DUNGEON: 'DUNGEON',
     PUZZLE_COMPLETE: 'PUZZLE_COMPLETE',
     PAUSED: 'PAUSED',
-    DEAD: 'DEAD'
+    DEAD: 'DEAD',
+    SAVE_MENU: 'SAVE_MENU',
+    SAVE_SLOTS: 'SAVE_SLOTS',
+    RESTORE_SLOTS: 'RESTORE_SLOTS',
 };
 
 export const gameState = {

@@ -23,8 +23,9 @@ import { TILE_SIZE, tileProps, T } from './data/tileTypes.js';
 import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
+import { saveSystem } from './systems/saveSystem.js';
 
-export const VERSION = '0.9.0';
+export const VERSION = '1.0.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -68,6 +69,22 @@ let shopSkeletonAnimTimer = 0;
 
 // Save point for respawning after death
 let savePoint = { x: SPAWN_X, y: SPAWN_Y, inDungeon: false, inShop: false };
+
+// Persistent save/name system
+let currentSaveSlot = 0;
+let playerName = '';
+
+// Name entry state
+let nameEntrySelectedSlot = 0;
+let nameEntryTyping = false;
+let nameEntryText = '';
+
+// Save menu state (pause → save/restore/cancel)
+let saveMenuOption = 0; // 0=Save, 1=Restore, 2=Cancel
+
+// Save/restore slot selection
+let selectedSlot = 0;
+let saveSlotContext = 'save'; // 'save' | 'restore'
 
 // Death screen
 let deathTimer = 0;
@@ -145,8 +162,15 @@ function update() {
         case States.TITLE:
             if (input.start || input.action) {
                 music.unlock();
-                gameState.change(States.CHARACTER_SELECT);
+                nameEntrySelectedSlot = 0;
+                nameEntryTyping = false;
+                nameEntryText = '';
+                gameState.change(States.NAME_ENTRY);
             }
+            break;
+
+        case States.NAME_ENTRY:
+            updateNameEntry();
             break;
 
         case States.CHARACTER_SELECT:
@@ -188,6 +212,18 @@ function update() {
             if (deathTimer >= DEATH_SCREEN_DURATION && (input.action || input.start)) {
                 respawnPlayer();
             }
+            break;
+
+        case States.SAVE_MENU:
+            updateSaveMenu();
+            break;
+
+        case States.SAVE_SLOTS:
+            updateSaveSlots();
+            break;
+
+        case States.RESTORE_SLOTS:
+            updateRestoreSlots();
             break;
     }
 }
@@ -308,6 +344,11 @@ function updatePlaying() {
     if (input.inventory) {
         invSelectedIndex = 0;
         gameState.change(States.INVENTORY);
+    }
+
+    if (input.start) {
+        saveMenuOption = 0;
+        gameState.change(States.SAVE_MENU);
     }
 }
 
@@ -437,6 +478,11 @@ function updateDungeon() {
     if (input.inventory) {
         invSelectedIndex = 0;
         gameState.change(States.INVENTORY);
+    }
+
+    if (input.start) {
+        saveMenuOption = 0;
+        gameState.change(States.SAVE_MENU);
     }
 }
 
@@ -699,6 +745,11 @@ function updateShopInterior() {
     if (input.inventory) {
         invSelectedIndex = 0;
         gameState.change(States.INVENTORY);
+    }
+
+    if (input.start) {
+        saveMenuOption = 0;
+        gameState.change(States.SAVE_MENU);
     }
 }
 
@@ -1043,6 +1094,220 @@ function updateShop() {
     if (input.cancel) gameState.change(States.PLAYING);
 }
 
+// ── SAVE SYSTEM ──
+
+function performSave(slot) {
+    const data = {
+        name: playerName,
+        version: VERSION,
+        timestamp: Date.now(),
+        // Player
+        x: player.x,
+        y: player.y,
+        health: player.health,
+        maxHealth: player.maxHealth,
+        emeralds: player.emeralds,
+        characterId: player.characterId,
+        palette: player.palette,
+        facing: player.facing,
+        inventoryItemIds: inventory.items.map(i => i.id),
+        equippedItemId: player.equippedItem?.id || null,
+        secondaryItemId: player.secondaryItem?.id || null,
+        hasBlueberry: player.hasBlueberry,
+        hasDiamond: player.hasDiamond,
+        // World
+        inDungeon,
+        inShop,
+        puzzleSolved: puzzle.solved,
+        dungeonCleared,
+        lockedRoomOpen,
+        enderPearlPickedUp,
+        shopSkeletonFreed,
+        shopSkeletonDefeated,
+        dungeonChestOpened: dungeonChest?.opened || false,
+        dungeonChestX: dungeonChest?.x || null,
+        dungeonChestY: dungeonChest?.y || null,
+    };
+    saveSystem.save(slot, data);
+    currentSaveSlot = slot;
+}
+
+function performRestore(slot) {
+    const data = saveSystem.getSlot(slot);
+    if (!data) return;
+
+    // Initialize world fresh
+    startGame();
+
+    // Restore player
+    const charDef = characters.find(c => c.id === data.characterId) || characters[0];
+    player.init(data.x, data.y, data.palette || charDef.palette);
+    player.characterId = data.characterId || charDef.id;
+    player.health = data.health;
+    player.maxHealth = data.maxHealth;
+    player.emeralds = data.emeralds;
+    player.facing = data.facing || 'down';
+    player.hasBlueberry = data.hasBlueberry || false;
+    player.hasDiamond = data.hasDiamond || false;
+
+    // Restore inventory (add without auto-equipping so we can set equipped manually)
+    inventory.reset();
+    for (const id of (data.inventoryItemIds || [])) {
+        if (itemDefs[id]) {
+            const item = { ...itemDefs[id] };
+            inventory.items.push(item);
+        }
+    }
+    player.inventory = inventory.items;
+    player.equippedItem = inventory.items.find(i => i.id === data.equippedItemId) || null;
+    player.secondaryItem = inventory.items.find(i => i.id === data.secondaryItemId) || null;
+
+    // Restore world flags
+    inDungeon = data.inDungeon || false;
+    inShop = data.inShop || false;
+    dungeonCleared = data.dungeonCleared || false;
+    lockedRoomOpen = data.lockedRoomOpen || false;
+    enderPearlPickedUp = data.enderPearlPickedUp || false;
+    shopSkeletonFreed = data.shopSkeletonFreed || false;
+    shopSkeletonDefeated = data.shopSkeletonDefeated || false;
+
+    // Restore puzzle state
+    if (data.puzzleSolved) {
+        puzzle.solved = true;
+        openDungeonEntrance();
+    }
+
+    // Restore locked dungeon door
+    if (data.lockedRoomOpen) {
+        dungeonMap[LOCKED_DOOR_ROW][LOCKED_DOOR_COLS[0]] = T.DUNGEON_FLOOR;
+        dungeonMap[LOCKED_DOOR_ROW][LOCKED_DOOR_COLS[1]] = T.DUNGEON_FLOOR;
+    }
+
+    // Restore dungeon chest
+    if (data.dungeonChestX !== null && data.dungeonChestX !== undefined) {
+        dungeonChest = { x: data.dungeonChestX, y: data.dungeonChestY, opened: data.dungeonChestOpened };
+    }
+
+    // Restore enemies
+    if (inDungeon && !dungeonCleared) {
+        enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
+    } else {
+        enemies = [];
+    }
+    if (inShop && shopSkeletonFreed && !shopSkeletonDefeated) {
+        shopEnemies = [new Enemy(SKELETON_X, SKELETON_Y, 'skeleton')];
+        shopEnemies[0].hp = 4;
+        shopEnemies[0].maxHp = 4;
+        shopEnemies[0].speed = 0.7;
+    } else {
+        shopEnemies = [];
+    }
+
+    savePoint = { x: data.x, y: data.y, inDungeon: data.inDungeon, inShop: data.inShop };
+    playerName = data.name;
+    currentSaveSlot = slot;
+
+    camera.x = 0;
+    camera.y = 0;
+    music.play(inDungeon ? 'dungeon' : (inShop ? 'shop' : 'overworld'));
+    gameState.change(States.PLAYING);
+}
+
+function updateNameEntry() {
+    const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    if (nameEntryTyping) {
+        // Capture letter keys
+        for (const letter of ALPHABET) {
+            if (input.isPressed('Key' + letter) && nameEntryText.length < 10) {
+                nameEntryText += letter;
+            }
+        }
+        // Capture digit keys
+        for (let d = 0; d <= 9; d++) {
+            if (input.isPressed('Digit' + d) && nameEntryText.length < 10) {
+                nameEntryText += String(d);
+            }
+        }
+        // Backspace
+        if (input.isPressed('Backspace')) {
+            nameEntryText = nameEntryText.slice(0, -1);
+        }
+        // Confirm name
+        if ((input.action || input.start) && nameEntryText.length > 0) {
+            playerName = nameEntryText;
+            currentSaveSlot = nameEntrySelectedSlot;
+            nameEntryTyping = false;
+            gameState.change(States.CHARACTER_SELECT);
+        }
+        // Cancel typing (go back to slot selection)
+        if (input.cancel) {
+            nameEntryTyping = false;
+            nameEntryText = '';
+        }
+    } else {
+        if (input.upPressed) nameEntrySelectedSlot = (nameEntrySelectedSlot - 1 + 3) % 3;
+        if (input.downPressed) nameEntrySelectedSlot = (nameEntrySelectedSlot + 1) % 3;
+        if (input.action || input.start) {
+            nameEntryTyping = true;
+            nameEntryText = '';
+        }
+        // B/X to go back to title
+        if (input.cancel) {
+            gameState.change(States.TITLE);
+        }
+    }
+}
+
+function updateSaveMenu() {
+    if (input.upPressed) saveMenuOption = (saveMenuOption - 1 + 3) % 3;
+    if (input.downPressed) saveMenuOption = (saveMenuOption + 1) % 3;
+    if (input.action || input.start) {
+        if (saveMenuOption === 0) {
+            // Save
+            selectedSlot = 0;
+            saveSlotContext = 'save';
+            gameState.change(States.SAVE_SLOTS);
+        } else if (saveMenuOption === 1) {
+            // Restore
+            selectedSlot = 0;
+            saveSlotContext = 'restore';
+            gameState.change(States.RESTORE_SLOTS);
+        } else {
+            // Cancel
+            gameState.change(States.PLAYING);
+        }
+    }
+    if (input.cancel) {
+        gameState.change(States.PLAYING);
+    }
+}
+
+function updateSaveSlots() {
+    if (input.upPressed) selectedSlot = (selectedSlot - 1 + 3) % 3;
+    if (input.downPressed) selectedSlot = (selectedSlot + 1) % 3;
+    if (input.action || input.start) {
+        performSave(selectedSlot);
+        gameState.change(States.PLAYING);
+    }
+    if (input.cancel) {
+        gameState.change(States.SAVE_MENU);
+    }
+}
+
+function updateRestoreSlots() {
+    const slots = saveSystem.getAllSlots();
+    if (input.upPressed) selectedSlot = (selectedSlot - 1 + 3) % 3;
+    if (input.downPressed) selectedSlot = (selectedSlot + 1) % 3;
+    if (input.action || input.start) {
+        if (slots[selectedSlot]) {
+            performRestore(selectedSlot);
+        }
+    }
+    if (input.cancel) {
+        gameState.change(States.SAVE_MENU);
+    }
+}
+
 // ── RENDER ──
 
 function render() {
@@ -1050,7 +1315,26 @@ function render() {
 
     switch (gameState.current) {
         case States.TITLE: renderTitle(); break;
+        case States.NAME_ENTRY: renderNameEntry(); break;
         case States.CHARACTER_SELECT: renderCharacterSelect(); break;
+        case States.SAVE_MENU:
+            if (inDungeon) renderDungeonScene();
+            else if (inShop) renderShopScene();
+            else renderTownScene();
+            renderSaveMenu();
+            break;
+        case States.SAVE_SLOTS:
+            if (inDungeon) renderDungeonScene();
+            else if (inShop) renderShopScene();
+            else renderTownScene();
+            renderSaveSlots();
+            break;
+        case States.RESTORE_SLOTS:
+            if (inDungeon) renderDungeonScene();
+            else if (inShop) renderShopScene();
+            else renderTownScene();
+            renderRestoreSlots();
+            break;
         case States.PLAYING:
         case States.DIALOGUE:
         case States.INVENTORY:
@@ -1470,6 +1754,182 @@ function renderShopUI() {
     }
     ctx.fillStyle = '#555';
     drawSmallText(ctx, 'Z:Buy  X:Leave', px + 8, py + ph - 12);
+}
+
+function renderNameEntry() {
+    const slots = saveSystem.getAllSlots();
+
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+    // Starfield
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 20; i++) {
+        const seed = i * 7919;
+        const x = (seed * 13) % VIRTUAL_WIDTH;
+        const y = (seed * 17) % (VIRTUAL_HEIGHT - 40);
+        if (Math.sin(titleTimer * 0.05 + i) > 0.3) ctx.fillRect(x, y, 1, 1);
+    }
+
+    ctx.fillStyle = '#fff';
+    drawSmallText(ctx, 'Select Save Slot', VIRTUAL_WIDTH / 2 - 48, 10);
+    ctx.fillStyle = '#555';
+    drawSmallText(ctx, 'Choose a slot for your adventure', VIRTUAL_WIDTH / 2 - 93, 19);
+
+    for (let i = 0; i < 3; i++) {
+        const slotData = slots[i];
+        const isSelected = i === nameEntrySelectedSlot;
+        const boxY = 32 + i * 33;
+        const boxX = 12;
+        const boxW = VIRTUAL_WIDTH - 24;
+        const boxH = 29;
+
+        // Box background
+        ctx.fillStyle = isSelected ? '#2a2a50' : '#1e1e38';
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.strokeStyle = isSelected ? '#ffcc00' : '#444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+        // Slot label
+        ctx.fillStyle = isSelected ? '#ffcc00' : '#888';
+        drawSmallText(ctx, 'SLOT ' + (i + 1), boxX + 6, boxY + 5);
+
+        if (nameEntryTyping && isSelected) {
+            // Typing mode
+            ctx.fillStyle = '#4CAF50';
+            drawSmallText(ctx, 'Enter name:', boxX + 6, boxY + 15);
+            const cursor = Math.floor(titleTimer / 15) % 2 === 0 ? '_' : '';
+            ctx.fillStyle = '#fff';
+            drawSmallText(ctx, nameEntryText + cursor, boxX + 72, boxY + 15);
+        } else if (slotData) {
+            // Saved data
+            ctx.fillStyle = isSelected ? '#fff' : '#aaa';
+            drawSmallText(ctx, slotData.name, boxX + 6, boxY + 15);
+            const loc = slotData.inDungeon ? 'Mine' : (slotData.inShop ? 'Shop' : 'Town');
+            ctx.fillStyle = '#3CB371';
+            drawSmallText(ctx, String(slotData.emeralds) + 'em', boxX + boxW - 30, boxY + 15);
+            ctx.fillStyle = '#888';
+            drawSmallText(ctx, loc, boxX + boxW - 60, boxY + 15);
+            ctx.fillStyle = '#555';
+            drawSmallText(ctx, '(overwrite)', boxX + 6 + (slotData.name.length * 6) + 6, boxY + 15);
+        } else {
+            ctx.fillStyle = '#555';
+            drawSmallText(ctx, '(Empty)', boxX + 6, boxY + 15);
+        }
+    }
+
+    ctx.fillStyle = '#555';
+    if (nameEntryTyping) {
+        drawSmallText(ctx, 'A-Z:Type  BkSp:Del  Enter:OK  X:Back', 8, VIRTUAL_HEIGHT - 10);
+    } else {
+        drawSmallText(ctx, 'Up/Down:Select  Enter:Choose  X:Back', 8, VIRTUAL_HEIGHT - 10);
+    }
+}
+
+function renderSaveMenu() {
+    const menuW = 110, menuH = 70;
+    const menuX = VIRTUAL_WIDTH / 2 - menuW / 2;
+    const menuY = VIRTUAL_HEIGHT / 2 - menuH / 2;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+    ctx.fillStyle = '#1A1A2E';
+    ctx.fillRect(menuX, menuY, menuW, menuH);
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(menuX, menuY, menuW, menuH);
+
+    ctx.fillStyle = '#fff';
+    drawSmallText(ctx, 'GAME MENU', menuX + menuW / 2 - 27, menuY + 7);
+
+    const options = ['Save Game', 'Restore', 'Cancel'];
+    for (let i = 0; i < options.length; i++) {
+        const y = menuY + 22 + i * 14;
+        if (i === saveMenuOption) {
+            ctx.fillStyle = '#333355';
+            ctx.fillRect(menuX + 6, y - 2, menuW - 12, 12);
+            ctx.fillStyle = '#ffcc00';
+            drawSmallText(ctx, '>', menuX + 10, y);
+        } else {
+            ctx.fillStyle = '#aaa';
+        }
+        drawSmallText(ctx, options[i], menuX + 20, y);
+    }
+
+    ctx.fillStyle = '#555';
+    drawSmallText(ctx, 'Z:Select  X:Cancel', menuX + 8, menuY + menuH - 12);
+}
+
+function renderSaveSlots() {
+    const slots = saveSystem.getAllSlots();
+    renderSlotPicker(slots, 'Save to Slot', false);
+}
+
+function renderRestoreSlots() {
+    const slots = saveSystem.getAllSlots();
+    renderSlotPicker(slots, 'Restore from Slot', true);
+}
+
+function renderSlotPicker(slots, title, restoreMode) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+    const boxW = VIRTUAL_WIDTH - 24;
+    const boxH = VIRTUAL_HEIGHT - 24;
+    const boxX = 12;
+    const boxY = 12;
+
+    ctx.fillStyle = '#1A1A2E';
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+    ctx.fillStyle = '#fff';
+    drawSmallText(ctx, title, boxX + boxW / 2 - title.length * 3, boxY + 7);
+
+    for (let i = 0; i < 3; i++) {
+        const slotData = slots[i];
+        const isSelected = i === selectedSlot;
+        const slotBoxY = boxY + 20 + i * 30;
+        const slotBoxX = boxX + 6;
+        const slotBoxW = boxW - 12;
+        const slotBoxH = 26;
+        const isEmpty = !slotData;
+        const greyOut = restoreMode && isEmpty;
+
+        ctx.fillStyle = isSelected && !greyOut ? '#2a2a50' : '#1e1e38';
+        ctx.fillRect(slotBoxX, slotBoxY, slotBoxW, slotBoxH);
+        ctx.strokeStyle = isSelected && !greyOut ? '#ffcc00' : (greyOut ? '#333' : '#444');
+        ctx.lineWidth = 1;
+        ctx.strokeRect(slotBoxX, slotBoxY, slotBoxW, slotBoxH);
+
+        ctx.fillStyle = greyOut ? '#444' : (isSelected ? '#ffcc00' : '#888');
+        drawSmallText(ctx, 'SLOT ' + (i + 1), slotBoxX + 5, slotBoxY + 4);
+
+        if (slotData) {
+            ctx.fillStyle = greyOut ? '#555' : (isSelected ? '#fff' : '#aaa');
+            drawSmallText(ctx, slotData.name, slotBoxX + 5, slotBoxY + 14);
+            const loc = slotData.inDungeon ? 'Mine' : (slotData.inShop ? 'Shop' : 'Town');
+            ctx.fillStyle = '#3CB371';
+            drawSmallText(ctx, String(slotData.emeralds) + 'em', slotBoxX + slotBoxW - 30, slotBoxY + 14);
+            ctx.fillStyle = '#888';
+            drawSmallText(ctx, loc, slotBoxX + slotBoxW - 60, slotBoxY + 14);
+        } else {
+            ctx.fillStyle = '#444';
+            drawSmallText(ctx, restoreMode ? '(No save)' : '(Empty)', slotBoxX + 5, slotBoxY + 14);
+        }
+    }
+
+    if (restoreMode) {
+        ctx.fillStyle = '#555';
+        drawSmallText(ctx, 'Up/Down:Select  Enter:Load  X:Back', boxX + 6, boxY + boxH - 12);
+    } else {
+        ctx.fillStyle = '#555';
+        drawSmallText(ctx, 'Up/Down:Select  Enter:Save  X:Back', boxX + 6, boxY + boxH - 12);
+    }
 }
 
 function renderDeathScreen() {
