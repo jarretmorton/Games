@@ -1,4 +1,4 @@
-import { initRenderer, clearScreen, getCtx, VIRTUAL_WIDTH, VIRTUAL_HEIGHT } from './rendering/renderer.js';
+import { initRenderer, clearScreen, getCtx, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, getScale } from './rendering/renderer.js';
 import { input } from './engine/input.js';
 import { gameState, States } from './state/gameState.js';
 import { camera } from './engine/camera.js';
@@ -86,6 +86,65 @@ let saveMenuOption = 0; // 0=Save, 1=Restore, 2=Cancel
 let selectedSlot = 0;
 let saveSlotContext = 'save'; // 'save' | 'restore'
 
+// On-screen keyboard flash feedback
+let kbFlashKey = null;
+let kbFlashTimer = 0;
+
+// ── ON-SCREEN KEYBOARD LAYOUT ──
+const KB_KEY_W = 22;
+const KB_KEY_H = 13;
+const KB_H_GAP = 2;
+const KB_V_GAP = 2;
+const KB_ROW_H = KB_KEY_H + KB_V_GAP; // 15
+const KB_Y = 44; // top of keyboard in typing mode
+
+let _kbKeys = null;
+function getKbKeys() {
+    if (_kbKeys) return _kbKeys;
+    const keys = [];
+
+    // Rows 1 and 2
+    const letterRows = [
+        ['Q','W','E','R','T','Y','U','I','O','P'],
+        ['A','S','D','F','G','H','J','K','L'],
+    ];
+    for (let r = 0; r < letterRows.length; r++) {
+        const row = letterRows[r];
+        const rowW = row.length * KB_KEY_W + (row.length - 1) * KB_H_GAP;
+        let x = Math.floor((VIRTUAL_WIDTH - rowW) / 2);
+        const y = KB_Y + r * KB_ROW_H;
+        for (const letter of row) {
+            keys.push({ label: letter, code: 'Key' + letter, x, y, w: KB_KEY_W, h: KB_KEY_H });
+            x += KB_KEY_W + KB_H_GAP;
+        }
+    }
+
+    // Row 3: Z X C V B N M + DEL
+    const delW = 36;
+    const row3Letters = ['Z','X','C','V','B','N','M'];
+    const lettersW = row3Letters.length * KB_KEY_W + (row3Letters.length - 1) * KB_H_GAP;
+    const row3TotalW = lettersW + KB_H_GAP + delW;
+    let x3 = Math.floor((VIRTUAL_WIDTH - row3TotalW) / 2);
+    const y3 = KB_Y + 2 * KB_ROW_H;
+    for (const letter of row3Letters) {
+        keys.push({ label: letter, code: 'Key' + letter, x: x3, y: y3, w: KB_KEY_W, h: KB_KEY_H });
+        x3 += KB_KEY_W + KB_H_GAP;
+    }
+    keys.push({ label: 'DEL', code: 'Backspace', x: x3, y: y3, w: delW, h: KB_KEY_H });
+
+    // Row 4: CANCEL + SPACE + OK
+    const cancelW = 44, spcW = 78, okW = 38;
+    const row4TotalW = cancelW + KB_H_GAP + spcW + KB_H_GAP + okW;
+    const x4 = Math.floor((VIRTUAL_WIDTH - row4TotalW) / 2);
+    const y4 = KB_Y + 3 * KB_ROW_H;
+    keys.push({ label: 'CANCEL', code: 'Cancel', x: x4, y: y4, w: cancelW, h: KB_KEY_H });
+    keys.push({ label: 'SPACE', code: 'Space', x: x4 + cancelW + KB_H_GAP, y: y4, w: spcW, h: KB_KEY_H });
+    keys.push({ label: 'OK', code: 'Enter', x: x4 + cancelW + KB_H_GAP + spcW + KB_H_GAP, y: y4, w: okW, h: KB_KEY_H });
+
+    _kbKeys = keys;
+    return keys;
+}
+
 // Death screen
 let deathTimer = 0;
 const DEATH_SCREEN_DURATION = 120; // 2 seconds at 60fps
@@ -95,7 +154,57 @@ let transition = { active: false, timer: 0, maxTime: 30, callback: null };
 
 function init() {
     ctx = initRenderer();
+    initCanvasInput();
     requestAnimationFrame(gameLoop);
+}
+
+function initCanvasInput() {
+    const canvas = ctx.canvas;
+
+    function handleTap(clientX, clientY) {
+        if (gameState.current !== States.NAME_ENTRY || !nameEntryTyping) return;
+        const rect = canvas.getBoundingClientRect();
+        const scale = getScale();
+        const vx = (clientX - rect.left) / scale;
+        const vy = (clientY - rect.top) / scale;
+        for (const key of getKbKeys()) {
+            if (vx >= key.x && vx < key.x + key.w && vy >= key.y && vy < key.y + key.h) {
+                handleKbKeyTap(key);
+                break;
+            }
+        }
+    }
+
+    canvas.addEventListener('touchstart', (e) => {
+        if (gameState.current === States.NAME_ENTRY && nameEntryTyping) {
+            e.preventDefault();
+            for (const touch of e.changedTouches) handleTap(touch.clientX, touch.clientY);
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('click', (e) => handleTap(e.clientX, e.clientY));
+}
+
+function handleKbKeyTap(key) {
+    kbFlashKey = key.code;
+    kbFlashTimer = 8;
+    if (key.code === 'Backspace') {
+        nameEntryText = nameEntryText.slice(0, -1);
+    } else if (key.code === 'Enter') {
+        if (nameEntryText.length > 0) {
+            playerName = nameEntryText;
+            currentSaveSlot = nameEntrySelectedSlot;
+            nameEntryTyping = false;
+            gameState.change(States.CHARACTER_SELECT);
+        }
+    } else if (key.code === 'Cancel') {
+        nameEntryTyping = false;
+        nameEntryText = '';
+    } else if (key.code === 'Space') {
+        if (nameEntryText.length < 10) nameEntryText += ' ';
+    } else if (key.code.startsWith('Key')) {
+        if (nameEntryText.length < 10) nameEntryText += key.code.slice(3);
+    }
 }
 
 function startGame() {
@@ -147,6 +256,7 @@ function gameLoop(timestamp) {
 
 function update() {
     titleTimer++;
+    if (kbFlashTimer > 0) kbFlashTimer--;
 
     // Handle screen transitions
     if (transition.active) {
@@ -1757,8 +1867,6 @@ function renderShopUI() {
 }
 
 function renderNameEntry() {
-    const slots = saveSystem.getAllSlots();
-
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
@@ -1766,10 +1874,20 @@ function renderNameEntry() {
     ctx.fillStyle = '#fff';
     for (let i = 0; i < 20; i++) {
         const seed = i * 7919;
-        const x = (seed * 13) % VIRTUAL_WIDTH;
-        const y = (seed * 17) % (VIRTUAL_HEIGHT - 40);
-        if (Math.sin(titleTimer * 0.05 + i) > 0.3) ctx.fillRect(x, y, 1, 1);
+        const sx = (seed * 13) % VIRTUAL_WIDTH;
+        const sy = (seed * 17) % (VIRTUAL_HEIGHT - 40);
+        if (Math.sin(titleTimer * 0.05 + i) > 0.3) ctx.fillRect(sx, sy, 1, 1);
     }
+
+    if (nameEntryTyping) {
+        renderNameEntryTyping();
+    } else {
+        renderNameEntrySlots();
+    }
+}
+
+function renderNameEntrySlots() {
+    const slots = saveSystem.getAllSlots();
 
     ctx.fillStyle = '#fff';
     drawSmallText(ctx, 'Select Save Slot', VIRTUAL_WIDTH / 2 - 48, 10);
@@ -1784,26 +1902,16 @@ function renderNameEntry() {
         const boxW = VIRTUAL_WIDTH - 24;
         const boxH = 29;
 
-        // Box background
         ctx.fillStyle = isSelected ? '#2a2a50' : '#1e1e38';
         ctx.fillRect(boxX, boxY, boxW, boxH);
         ctx.strokeStyle = isSelected ? '#ffcc00' : '#444';
         ctx.lineWidth = 1;
         ctx.strokeRect(boxX, boxY, boxW, boxH);
 
-        // Slot label
         ctx.fillStyle = isSelected ? '#ffcc00' : '#888';
         drawSmallText(ctx, 'SLOT ' + (i + 1), boxX + 6, boxY + 5);
 
-        if (nameEntryTyping && isSelected) {
-            // Typing mode
-            ctx.fillStyle = '#4CAF50';
-            drawSmallText(ctx, 'Enter name:', boxX + 6, boxY + 15);
-            const cursor = Math.floor(titleTimer / 15) % 2 === 0 ? '_' : '';
-            ctx.fillStyle = '#fff';
-            drawSmallText(ctx, nameEntryText + cursor, boxX + 72, boxY + 15);
-        } else if (slotData) {
-            // Saved data
+        if (slotData) {
             ctx.fillStyle = isSelected ? '#fff' : '#aaa';
             drawSmallText(ctx, slotData.name, boxX + 6, boxY + 15);
             const loc = slotData.inDungeon ? 'Mine' : (slotData.inShop ? 'Shop' : 'Town');
@@ -1820,10 +1928,66 @@ function renderNameEntry() {
     }
 
     ctx.fillStyle = '#555';
-    if (nameEntryTyping) {
-        drawSmallText(ctx, 'A-Z:Type  BkSp:Del  Enter:OK  X:Back', 8, VIRTUAL_HEIGHT - 10);
-    } else {
-        drawSmallText(ctx, 'Up/Down:Select  Enter:Choose  X:Back', 8, VIRTUAL_HEIGHT - 10);
+    drawSmallText(ctx, 'Up/Down:Select  Enter:Choose  X:Back', 8, VIRTUAL_HEIGHT - 10);
+}
+
+function renderNameEntryTyping() {
+    // Slot header
+    ctx.fillStyle = '#ffcc00';
+    drawSmallText(ctx, 'SLOT ' + (nameEntrySelectedSlot + 1) + ' - ENTER YOUR NAME', 10, 8);
+
+    // Name input box
+    const boxX = 10, boxY = 20, boxW = VIRTUAL_WIDTH - 20, boxH = 18;
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.strokeStyle = '#4CAF50';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+    const cursor = Math.floor(titleTimer / 15) % 2 === 0 ? '_' : ' ';
+    ctx.fillStyle = '#fff';
+    drawSmallText(ctx, nameEntryText + cursor, boxX + 6, boxY + 6);
+
+    const countColor = nameEntryText.length >= 10 ? '#CC3333' : '#555';
+    ctx.fillStyle = countColor;
+    drawSmallText(ctx, String(nameEntryText.length) + '/10', boxX + boxW - 24, boxY + 6);
+
+    // On-screen keyboard
+    renderOnscreenKeyboard();
+
+    ctx.fillStyle = '#555';
+    drawSmallText(ctx, 'Tap keys  X/CANCEL:Back', VIRTUAL_WIDTH / 2 - 66, VIRTUAL_HEIGHT - 10);
+}
+
+function renderOnscreenKeyboard() {
+    for (const key of getKbKeys()) {
+        const isFlash = kbFlashKey === key.code && kbFlashTimer > 0;
+        const isOk = key.code === 'Enter';
+        const isCancel = key.code === 'Cancel';
+        const isDel = key.code === 'Backspace';
+
+        // Background
+        if (isFlash) {
+            ctx.fillStyle = isOk ? '#6FCF72' : (isCancel ? '#CC5555' : '#7777BB');
+        } else if (isOk) {
+            ctx.fillStyle = '#1a4a1a';
+        } else if (isCancel) {
+            ctx.fillStyle = '#3a1515';
+        } else {
+            ctx.fillStyle = '#1e1e3a';
+        }
+        ctx.fillRect(key.x, key.y, key.w, key.h);
+
+        // Border
+        ctx.strokeStyle = isFlash ? '#fff' : (isOk ? '#3CB371' : (isCancel ? '#885555' : '#444'));
+        ctx.lineWidth = 1;
+        ctx.strokeRect(key.x, key.y, key.w, key.h);
+
+        // Label
+        ctx.fillStyle = isFlash ? '#000' : (isOk ? '#3CB371' : (isDel || isCancel ? '#AA8888' : '#ccc'));
+        const labelX = Math.floor(key.x + key.w / 2 - key.label.length * 3);
+        const labelY = Math.floor(key.y + (key.h - 6) / 2);
+        drawSmallText(ctx, key.label, labelX, labelY);
     }
 }
 
