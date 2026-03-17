@@ -25,7 +25,7 @@ import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.1';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -89,6 +89,7 @@ let saveSlotContext = 'save'; // 'save' | 'restore'
 // On-screen keyboard flash feedback
 let kbFlashKey = null;
 let kbFlashTimer = 0;
+let kbCursorIndex = 0;
 
 // ── ON-SCREEN KEYBOARD LAYOUT ──
 const KB_KEY_W = 22;
@@ -144,6 +145,14 @@ function getKbKeys() {
     _kbKeys = keys;
     return keys;
 }
+
+// Keyboard row index ranges for d-pad navigation
+const KB_NAV_ROWS = [
+    [0,1,2,3,4,5,6,7,8,9],
+    [10,11,12,13,14,15,16,17,18],
+    [19,20,21,22,23,24,25,26],
+    [27,28,29],
+];
 
 // Death screen
 let deathTimer = 0;
@@ -1326,7 +1335,35 @@ function performRestore(slot) {
 function updateNameEntry() {
     const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     if (nameEntryTyping) {
-        // Capture letter keys
+        // D-pad navigation across on-screen keyboard
+        let curRow = 0, curCol = 0;
+        for (let r = 0; r < KB_NAV_ROWS.length; r++) {
+            const idx = KB_NAV_ROWS[r].indexOf(kbCursorIndex);
+            if (idx !== -1) { curRow = r; curCol = idx; break; }
+        }
+        if (input.leftPressed) {
+            const row = KB_NAV_ROWS[curRow];
+            kbCursorIndex = row[(curCol - 1 + row.length) % row.length];
+        }
+        if (input.rightPressed) {
+            const row = KB_NAV_ROWS[curRow];
+            kbCursorIndex = row[(curCol + 1) % row.length];
+        }
+        if (input.upPressed) {
+            const newRow = (curRow - 1 + KB_NAV_ROWS.length) % KB_NAV_ROWS.length;
+            const row = KB_NAV_ROWS[newRow];
+            kbCursorIndex = row[Math.min(curCol, row.length - 1)];
+        }
+        if (input.downPressed) {
+            const newRow = (curRow + 1) % KB_NAV_ROWS.length;
+            const row = KB_NAV_ROWS[newRow];
+            kbCursorIndex = row[Math.min(curCol, row.length - 1)];
+        }
+        // Action button taps the focused on-screen key
+        if (input.action) {
+            handleKbKeyTap(getKbKeys()[kbCursorIndex]);
+        }
+        // Capture letter keys (physical keyboard)
         for (const letter of ALPHABET) {
             if (input.isPressed('Key' + letter) && nameEntryText.length < 10) {
                 nameEntryText += letter;
@@ -1342,8 +1379,8 @@ function updateNameEntry() {
         if (input.isPressed('Backspace')) {
             nameEntryText = nameEntryText.slice(0, -1);
         }
-        // Confirm name
-        if ((input.action || input.start) && nameEntryText.length > 0) {
+        // Enter key confirms directly (desktop shortcut)
+        if (input.start && nameEntryText.length > 0) {
             playerName = nameEntryText;
             currentSaveSlot = nameEntrySelectedSlot;
             nameEntryTyping = false;
@@ -1358,8 +1395,14 @@ function updateNameEntry() {
         if (input.upPressed) nameEntrySelectedSlot = (nameEntrySelectedSlot - 1 + 3) % 3;
         if (input.downPressed) nameEntrySelectedSlot = (nameEntrySelectedSlot + 1) % 3;
         if (input.action || input.start) {
-            nameEntryTyping = true;
-            nameEntryText = '';
+            const slots = saveSystem.getAllSlots();
+            if (slots[nameEntrySelectedSlot]) {
+                performRestore(nameEntrySelectedSlot);
+            } else {
+                nameEntryTyping = true;
+                nameEntryText = '';
+                kbCursorIndex = 0;
+            }
         }
         // B/X to go back to title
         if (input.cancel) {
@@ -1919,8 +1962,8 @@ function renderNameEntrySlots() {
             drawSmallText(ctx, String(slotData.emeralds) + 'em', boxX + boxW - 30, boxY + 15);
             ctx.fillStyle = '#888';
             drawSmallText(ctx, loc, boxX + boxW - 60, boxY + 15);
-            ctx.fillStyle = '#555';
-            drawSmallText(ctx, '(overwrite)', boxX + 6 + (slotData.name.length * 6) + 6, boxY + 15);
+            ctx.fillStyle = '#4CAF50';
+            drawSmallText(ctx, '(LOAD)', boxX + 6 + (slotData.name.length * 6) + 6, boxY + 15);
         } else {
             ctx.fillStyle = '#555';
             drawSmallText(ctx, '(Empty)', boxX + 6, boxY + 15);
@@ -1956,12 +1999,15 @@ function renderNameEntryTyping() {
     renderOnscreenKeyboard();
 
     ctx.fillStyle = '#555';
-    drawSmallText(ctx, 'Tap keys  X/CANCEL:Back', VIRTUAL_WIDTH / 2 - 66, VIRTUAL_HEIGHT - 10);
+    drawSmallText(ctx, 'D-Pad:Navigate  A:Select  X:Back', VIRTUAL_WIDTH / 2 - 96, VIRTUAL_HEIGHT - 10);
 }
 
 function renderOnscreenKeyboard() {
-    for (const key of getKbKeys()) {
+    const keys = getKbKeys();
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
         const isFlash = kbFlashKey === key.code && kbFlashTimer > 0;
+        const isCursor = i === kbCursorIndex;
         const isOk = key.code === 'Enter';
         const isCancel = key.code === 'Cancel';
         const isDel = key.code === 'Backspace';
@@ -1969,6 +2015,8 @@ function renderOnscreenKeyboard() {
         // Background
         if (isFlash) {
             ctx.fillStyle = isOk ? '#6FCF72' : (isCancel ? '#CC5555' : '#7777BB');
+        } else if (isCursor) {
+            ctx.fillStyle = isOk ? '#2a6a2a' : (isCancel ? '#5a2525' : '#4a4a88');
         } else if (isOk) {
             ctx.fillStyle = '#1a4a1a';
         } else if (isCancel) {
@@ -1979,12 +2027,12 @@ function renderOnscreenKeyboard() {
         ctx.fillRect(key.x, key.y, key.w, key.h);
 
         // Border
-        ctx.strokeStyle = isFlash ? '#fff' : (isOk ? '#3CB371' : (isCancel ? '#885555' : '#444'));
+        ctx.strokeStyle = isFlash ? '#fff' : (isCursor ? '#ffcc00' : (isOk ? '#3CB371' : (isCancel ? '#885555' : '#444')));
         ctx.lineWidth = 1;
         ctx.strokeRect(key.x, key.y, key.w, key.h);
 
         // Label
-        ctx.fillStyle = isFlash ? '#000' : (isOk ? '#3CB371' : (isDel || isCancel ? '#AA8888' : '#ccc'));
+        ctx.fillStyle = isFlash ? '#000' : (isCursor ? '#ffcc00' : (isOk ? '#3CB371' : (isDel || isCancel ? '#AA8888' : '#ccc')));
         const labelX = Math.floor(key.x + key.w / 2 - key.label.length * 3);
         const labelY = Math.floor(key.y + (key.h - 6) / 2);
         drawSmallText(ctx, key.label, labelX, labelY);
