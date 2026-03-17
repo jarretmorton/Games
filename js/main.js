@@ -25,7 +25,7 @@ import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
 
-export const VERSION = '1.0.1';
+export const VERSION = '1.0.2';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -78,6 +78,7 @@ let playerName = '';
 let nameEntrySelectedSlot = 0;
 let nameEntryTyping = false;
 let nameEntryText = '';
+let nameEntryEraseSlot = -1; // >=0 when awaiting erase confirmation
 
 // Save menu state (pause → save/restore/cancel)
 let saveMenuOption = 0; // 0=Save, 1=Restore, 2=Cancel
@@ -168,30 +169,7 @@ function init() {
 }
 
 function initCanvasInput() {
-    const canvas = ctx.canvas;
-
-    function handleTap(clientX, clientY) {
-        if (gameState.current !== States.NAME_ENTRY || !nameEntryTyping) return;
-        const rect = canvas.getBoundingClientRect();
-        const scale = getScale();
-        const vx = (clientX - rect.left) / scale;
-        const vy = (clientY - rect.top) / scale;
-        for (const key of getKbKeys()) {
-            if (vx >= key.x && vx < key.x + key.w && vy >= key.y && vy < key.y + key.h) {
-                handleKbKeyTap(key);
-                break;
-            }
-        }
-    }
-
-    canvas.addEventListener('touchstart', (e) => {
-        if (gameState.current === States.NAME_ENTRY && nameEntryTyping) {
-            e.preventDefault();
-            for (const touch of e.changedTouches) handleTap(touch.clientX, touch.clientY);
-        }
-    }, { passive: false });
-
-    canvas.addEventListener('click', (e) => handleTap(e.clientX, e.clientY));
+    // Canvas touch/click input removed; keyboard is navigated via d-pad controls only.
 }
 
 function handleKbKeyTap(key) {
@@ -1363,8 +1341,9 @@ function updateNameEntry() {
         if (input.action) {
             handleKbKeyTap(getKbKeys()[kbCursorIndex]);
         }
-        // Capture letter keys (physical keyboard)
+        // Capture letter keys (physical keyboard); skip Z as it doubles as the action button
         for (const letter of ALPHABET) {
+            if (letter === 'Z') continue;
             if (input.isPressed('Key' + letter) && nameEntryText.length < 10) {
                 nameEntryText += letter;
             }
@@ -1392,21 +1371,39 @@ function updateNameEntry() {
             nameEntryText = '';
         }
     } else {
-        if (input.upPressed) nameEntrySelectedSlot = (nameEntrySelectedSlot - 1 + 3) % 3;
-        if (input.downPressed) nameEntrySelectedSlot = (nameEntrySelectedSlot + 1) % 3;
-        if (input.action || input.start) {
-            const slots = saveSystem.getAllSlots();
-            if (slots[nameEntrySelectedSlot]) {
-                performRestore(nameEntrySelectedSlot);
-            } else {
-                nameEntryTyping = true;
-                nameEntryText = '';
-                kbCursorIndex = 0;
+        if (nameEntryEraseSlot >= 0) {
+            // Erase confirmation pending
+            if (input.action || input.start) {
+                saveSystem.clearSlot(nameEntryEraseSlot);
+                nameEntryEraseSlot = -1;
             }
-        }
-        // B/X to go back to title
-        if (input.cancel) {
-            gameState.change(States.TITLE);
+            if (input.cancel) {
+                nameEntryEraseSlot = -1;
+            }
+        } else {
+            if (input.upPressed) nameEntrySelectedSlot = (nameEntrySelectedSlot - 1 + 3) % 3;
+            if (input.downPressed) nameEntrySelectedSlot = (nameEntrySelectedSlot + 1) % 3;
+            if (input.action || input.start) {
+                const slots = saveSystem.getAllSlots();
+                if (slots[nameEntrySelectedSlot]) {
+                    performRestore(nameEntrySelectedSlot);
+                } else {
+                    nameEntryTyping = true;
+                    nameEntryText = '';
+                    kbCursorIndex = 0;
+                }
+            }
+            // B initiates erase on a slot with data
+            if (input.isPressed('KeyB')) {
+                const slots = saveSystem.getAllSlots();
+                if (slots[nameEntrySelectedSlot]) {
+                    nameEntryEraseSlot = nameEntrySelectedSlot;
+                }
+            }
+            // X to go back to title
+            if (input.isPressed('KeyX')) {
+                gameState.change(States.TITLE);
+            }
         }
     }
 }
@@ -1954,7 +1951,14 @@ function renderNameEntrySlots() {
         ctx.fillStyle = isSelected ? '#ffcc00' : '#888';
         drawSmallText(ctx, 'SLOT ' + (i + 1), boxX + 6, boxY + 5);
 
-        if (slotData) {
+        if (nameEntryEraseSlot === i) {
+            // Erase confirmation state
+            ctx.strokeStyle = '#CC3333';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(boxX, boxY, boxW, boxH);
+            ctx.fillStyle = '#CC3333';
+            drawSmallText(ctx, 'ERASE SAVE? A:Confirm  B:Cancel', boxX + 6, boxY + 12);
+        } else if (slotData) {
             ctx.fillStyle = isSelected ? '#fff' : '#aaa';
             drawSmallText(ctx, slotData.name, boxX + 6, boxY + 15);
             const loc = slotData.inDungeon ? 'Mine' : (slotData.inShop ? 'Shop' : 'Town');
@@ -1971,7 +1975,11 @@ function renderNameEntrySlots() {
     }
 
     ctx.fillStyle = '#555';
-    drawSmallText(ctx, 'Up/Down:Select  Enter:Choose  X:Back', 8, VIRTUAL_HEIGHT - 10);
+    if (nameEntryEraseSlot >= 0) {
+        drawSmallText(ctx, 'A:Confirm Erase  B:Cancel', VIRTUAL_WIDTH / 2 - 75, VIRTUAL_HEIGHT - 10);
+    } else {
+        drawSmallText(ctx, 'A:Select  B:Erase  X:Back', VIRTUAL_WIDTH / 2 - 75, VIRTUAL_HEIGHT - 10);
+    }
 }
 
 function renderNameEntryTyping() {
