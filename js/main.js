@@ -27,7 +27,7 @@ import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
 
-export const VERSION = '1.1.1';
+export const VERSION = '1.1.2';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
