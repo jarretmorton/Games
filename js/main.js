@@ -27,7 +27,7 @@ import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.1.1';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -766,7 +766,7 @@ function enterLibrary() {
 
 function exitLibrary() {
     const exitX = 8 * TILE_SIZE + TILE_SIZE / 2;
-    const exitY = 9 * TILE_SIZE + TILE_SIZE / 2;
+    const exitY = 10 * TILE_SIZE + TILE_SIZE / 2;
     savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
     transition.active = true;
     transition.timer = 0;
@@ -895,7 +895,7 @@ function enterHome() {
 
 function exitHome() {
     const exitX = 24 * TILE_SIZE + TILE_SIZE / 2;
-    const exitY = 9 * TILE_SIZE + TILE_SIZE / 2;
+    const exitY = 10 * TILE_SIZE + TILE_SIZE / 2;
     savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
     transition.active = true;
     transition.timer = 0;
