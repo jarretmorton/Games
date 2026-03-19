@@ -4,8 +4,8 @@ export const npcData = [
     {
         id: 'farmer',
         name: 'Farmer',
-        tileX: 8, tileY: 10,
-        facing: 'down',
+        tileX: 6, tileY: 10,
+        facing: 'right',
         palette: {
             hair: '#5A3520',
             skin: '#C4956A',
@@ -24,8 +24,8 @@ export const npcData = [
     {
         id: 'librarian',
         name: 'Librarian',
-        tileX: 24, tileY: 10,
-        facing: 'down',
+        tileX: 26, tileY: 10,
+        facing: 'left',
         palette: {
             hair: '#CCCCCC',
             skin: '#C4956A',

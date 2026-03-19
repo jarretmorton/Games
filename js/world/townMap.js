@@ -104,8 +104,8 @@ export const SPAWN_Y = 11 * 32 + 8;
 
 // NPC positions (tile coordinates)
 export const npcPositions = [
-    { id: 'farmer',      tileX: 8,  tileY: 10, facing: 'down' },
-    { id: 'librarian',   tileX: 24, tileY: 10, facing: 'down' },
+    { id: 'farmer',      tileX: 6,  tileY: 10, facing: 'right' },
+    { id: 'librarian',   tileX: 26, tileY: 10, facing: 'left' },
     { id: 'blacksmith',  tileX: 8,  tileY: 13, facing: 'up' },
     { id: 'wanderer',    tileX: 18, tileY: 19, facing: 'left' },
 ];
