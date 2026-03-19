@@ -127,6 +127,28 @@ export const homeNpcData = {
     ]
 };
 
+// Alchemist NPC - Zara (inside the alchemist's workshop)
+export const alchemistNpcData = {
+    id: 'zara',
+    name: 'Zara',
+    tileX: 5, tileY: 2,
+    facing: 'left',
+    palette: {
+        hair: '#CCAAFF',
+        skin: '#D4B4C8',
+        eye: '#9933CC',
+        nose: '#BB99BB',
+        robe: '#4A1A7A',
+        shoe: '#2A0A4A',
+    },
+    dialogue: [
+        "Ah, a visitor. Do try not to disturb the reagents...",
+        "The dungeon below radiates an energy I cannot yet classify.",
+        "These enchanting tables draw on The End itself. Fascinating.",
+        "Emeralds? Worthless. Ender pearls? Now THOSE have real power.",
+    ]
+};
+
 // Shopkeeper NPC (inside the shop interior)
 export const shopkeeperData = {
     id: 'shopkeeper',
