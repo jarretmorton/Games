@@ -42,6 +42,13 @@ export const T = {
     SKELETON_CAGE: 37,
     LOCKED_DOOR: 38,
     FANCY_FLOOR: 39,
+    DOOR_LIBRARY: 40,
+    DOOR_HOME: 41,
+    BED: 42,
+    FURNACE: 43,
+    ENCHANTING_TABLE: 44,
+    SECRET_BUSH: 45,
+    LECTERN: 46,
 };
 
 export const tileProps = {
@@ -85,4 +92,11 @@ export const tileProps = {
     [T.SKELETON_CAGE]:    { solid: true,  color: '#8B6914', color2: '#7A5C12' },
     [T.LOCKED_DOOR]:      { solid: true,  color: '#2A1A0A', color2: '#1A0A00' },
     [T.FANCY_FLOOR]:      { solid: false, color: '#1A1630', color2: '#120E24' },
+    [T.DOOR_LIBRARY]:     { solid: false, color: '#4A3728', color2: '#3D2D20', interact: 'library' },
+    [T.DOOR_HOME]:        { solid: false, color: '#4A3728', color2: '#3D2D20', interact: 'home' },
+    [T.BED]:              { solid: true,  color: '#CC4444', color2: '#AA2222' },
+    [T.FURNACE]:          { solid: true,  color: '#555555', color2: '#444444' },
+    [T.ENCHANTING_TABLE]: { solid: true,  color: '#330066', color2: '#220044', interact: 'enchanting_table' },
+    [T.SECRET_BUSH]:      { solid: false, color: '#2D5A1E', color2: '#1E4A12', interact: 'secret_bush' },
+    [T.LECTERN]:          { solid: true,  color: '#7A5C12', color2: '#6B4226', interact: 'lectern' },
 };

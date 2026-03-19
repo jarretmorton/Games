@@ -83,6 +83,50 @@ export const npcData = [
     },
 ];
 
+// Library NPC - Alex the archivist (inside the library)
+export const libraryNpcData = {
+    id: 'archivist',
+    name: 'Alex',
+    tileX: 2, tileY: 3,
+    facing: 'right',
+    palette: {
+        hair: '#CC6633',
+        skin: '#C4956A',
+        eye: '#4466AA',
+        nose: '#B0845A',
+        robe: '#5588CC',
+        shoe: '#333333',
+    },
+    dialogue: [
+        "Welcome to the Craftville library! Knowledge is power!",
+        "Did you know creepers were a coding mistake? Now they're iconic.",
+        "The enchanting table uses ancient Galactic Runes... untranslatable.",
+        "I've been cataloguing every biome. 67 at last count!",
+    ]
+};
+
+// Home NPC - Steve the villager (inside the cozy house)
+export const homeNpcData = {
+    id: 'steve_home',
+    name: 'Steve',
+    tileX: 5, tileY: 2,
+    facing: 'left',
+    palette: {
+        hair: '#1A1A1A',
+        skin: '#C4956A',
+        eye: '#333333',
+        nose: '#B0845A',
+        robe: '#3366AA',
+        shoe: '#4A3728',
+    },
+    dialogue: [
+        "Home sweet home! Nothing like a cozy house after mining.",
+        "I mined for three days straight once. Found diamonds on level 12!",
+        "My furnace has been smelting iron since Tuesday. No rush.",
+        "Watch out at night - creepers blew up my last house. Twice.",
+    ]
+};
+
 // Shopkeeper NPC (inside the shop interior)
 export const shopkeeperData = {
     id: 'shopkeeper',

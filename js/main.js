@@ -6,11 +6,13 @@ import { renderMap, updateTileAnimations } from './world/tilemap.js';
 import { townMap, SPAWN_X, SPAWN_Y, breakablePositions } from './world/townMap.js';
 import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, LOCKED_DOOR_ROW, LOCKED_DOOR_COLS, ENDER_PEARL_X, ENDER_PEARL_Y } from './world/dungeonMap.js';
 import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELETON_X, SKELETON_Y, CRAFTING_TABLE_COL, CRAFTING_TABLE_ROW } from './world/shopMap.js';
+import { libraryMap, LIBRARY_SPAWN_X, LIBRARY_SPAWN_Y, LIBRARY_NPC_X, LIBRARY_NPC_Y } from './world/libraryMap.js';
+import { homeMap, HOME_SPAWN_X, HOME_SPAWN_Y, HOME_NPC_X, HOME_NPC_Y } from './world/homeMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
 import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton, drawChest } from './rendering/sprites.js';
 import { createNPCs } from './entities/npc.js';
-import { npcData, shopkeeperData } from './data/npcs.js';
+import { npcData, shopkeeperData, libraryNpcData, homeNpcData } from './data/npcs.js';
 import { dialogue } from './rendering/dialogue.js';
 import { createBreakables } from './entities/breakable.js';
 import { renderHUD } from './rendering/hud.js';
@@ -25,7 +27,7 @@ import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
 
-export const VERSION = '1.0.2';
+export const VERSION = '1.1.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -66,6 +68,17 @@ let shopSkeletonFreed = false;
 let shopSkeletonDefeated = false;
 let shopSkeletonAnimFrame = 0;
 let shopSkeletonAnimTimer = 0;
+
+// Library interior state
+let inLibrary = false;
+let libraryNpcs = [];
+
+// Home interior state
+let inHome = false;
+let homeNpcs = [];
+
+// Secret bush state (one-time reward)
+let secretBushCollected = false;
 
 // Save point for respawning after death
 let savePoint = { x: SPAWN_X, y: SPAWN_Y, inDungeon: false, inShop: false };
@@ -217,6 +230,10 @@ function startGame() {
     shopEnemies = [];
     shopSkeletonFreed = false;
     shopSkeletonDefeated = false;
+    libraryNpcs = createNPCs([libraryNpcData]);
+    homeNpcs = createNPCs([homeNpcData]);
+    inLibrary = false;
+    inHome = false;
 
     // Hook up weapon purchase callback to free the skeleton
     shop.onWeaponPurchased = () => {
@@ -286,6 +303,8 @@ function update() {
         case States.PLAYING:
             if (inDungeon) updateDungeon();
             else if (inShop) updateShopInterior();
+            else if (inLibrary) updateLibraryInterior();
+            else if (inHome) updateHomeInterior();
             else updatePlaying();
             break;
 
@@ -416,14 +435,19 @@ function updatePlaying() {
         }
     }
 
-    // Auto-enter shop when player walks through the door tile
+    // Auto-enter buildings when player walks through door tiles
     {
         const playerCol = Math.floor(player.x / TILE_SIZE);
         const playerRow = Math.floor(player.y / TILE_SIZE);
         if (playerRow >= 0 && playerRow < townMap.length && playerCol >= 0 && playerCol < townMap[0].length) {
             const tileId = townMap[playerRow][playerCol];
-            if (tileProps[tileId]?.interact === 'shop' && !transition.active) {
+            const interact = tileProps[tileId]?.interact;
+            if (interact === 'shop' && !transition.active) {
                 enterShop();
+            } else if (interact === 'library' && !transition.active) {
+                enterLibrary();
+            } else if (interact === 'home' && !transition.active) {
+                enterHome();
             }
         }
     }
@@ -539,13 +563,16 @@ function updateDungeon() {
                 const hits = checkAttackHits(hitbox, enemies);
                 for (const enemy of hits) {
                     enemy.takeDamage(player.equippedItem.damage, player.x, player.y);
-                    if (enemy.hp <= 0 && !dungeonCleared) {
-                        dungeonCleared = true;
-                        setTimeout(() => {
-                            spawnDungeonChest(enemy.x, enemy.y);
-                            dialogue.start('', ['The skeleton has been defeated!', 'A chest appeared...']);
-                            gameState.change(States.DIALOGUE);
-                        }, 400);
+                    if (enemy.hp <= 0) {
+                        maybeDropHeart(enemy.x, enemy.y);
+                        if (!dungeonCleared) {
+                            dungeonCleared = true;
+                            setTimeout(() => {
+                                spawnDungeonChest(enemy.x, enemy.y);
+                                dialogue.start('', ['The skeleton has been defeated!', 'A chest appeared...']);
+                                gameState.change(States.DIALOGUE);
+                            }, 400);
+                        }
                     }
                 }
             }
@@ -719,6 +746,246 @@ function exitShop() {
     };
 }
 
+function enterLibrary() {
+    savePoint = { x: player.x, y: player.y, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inLibrary = true;
+        inShop = false;
+        inDungeon = false;
+        inHome = false;
+        player.x = LIBRARY_SPAWN_X;
+        player.y = LIBRARY_SPAWN_Y;
+        camera.x = 0;
+        camera.y = 0;
+        music.play('shop'); // reuse shop music for cozy interior feel
+    };
+}
+
+function exitLibrary() {
+    const exitX = 8 * TILE_SIZE + TILE_SIZE / 2;
+    const exitY = 9 * TILE_SIZE + TILE_SIZE / 2;
+    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inLibrary = false;
+        player.x = exitX;
+        player.y = exitY;
+        music.play('overworld');
+    };
+}
+
+function updateLibraryInterior() {
+    updateTileAnimations();
+
+    const solidEntities = [];
+    for (const npc of libraryNpcs) {
+        solidEntities.push({ x: npc.collX, y: npc.collY, w: npc.w, h: npc.h, solid: true });
+    }
+
+    player.update(libraryMap, solidEntities);
+    for (const npc of libraryNpcs) npc.update();
+
+    if (checkPlayerDeath()) return;
+
+    if (input.secondary && !player.blocking) player.startBlock();
+
+    if (input.action) {
+        const nearInteract = checkNearLibraryInteract();
+        if (nearInteract) {
+            tryLibraryInteract();
+        } else {
+            if (!player.attack()) tryLibraryInteract();
+        }
+    }
+
+    updateArrows(libraryMap);
+    if (player.bowReleased) { player.bowReleased = false; spawnArrow(); }
+    updateDrops();
+
+    camera.follow(player.x, player.y, libraryMap[0].length, libraryMap.length);
+    camera.update();
+
+    const playerRow = Math.floor(player.y / TILE_SIZE);
+    if (playerRow >= libraryMap.length - 1) exitLibrary();
+
+    if (input.inventory) { invSelectedIndex = 0; gameState.change(States.INVENTORY); }
+    if (input.start) { saveMenuOption = 0; gameState.change(States.SAVE_MENU); }
+}
+
+function checkNearLibraryInteract() {
+    const point = player.getInteractPoint();
+    for (const npc of libraryNpcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) return true;
+    }
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    if (row >= 0 && row < libraryMap.length && col >= 0 && col < libraryMap[0].length) {
+        const props = tileProps[libraryMap[row][col]];
+        if (props?.interact) return true;
+    }
+    return false;
+}
+
+function tryLibraryInteract() {
+    const point = player.getInteractPoint();
+    for (const npc of libraryNpcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) {
+            dialogue.start(npc.name, [npc.getNextDialogue()]);
+            gameState.change(States.DIALOGUE);
+            return;
+        }
+    }
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    if (row >= 0 && row < libraryMap.length && col >= 0 && col < libraryMap[0].length) {
+        const tileId = libraryMap[row][col];
+        const props = tileProps[tileId];
+        if (props?.interact === 'bookshelf') {
+            const books = [
+                ['Mining for Dummies', '"Never dig straight down." - Notch, probably.'],
+                ['Creeper Anatomy', '"They have no arms. How do they even explode?" - Unknown Scholar'],
+                ['The Nether: A Travel Guide', '"Bring fire resistance. Seriously." - Author Unknown'],
+                ['Diamond Theory', '"Found at Y=-58. Diamonds are a miner\'s best friend." - Geologist'],
+            ];
+            const b = books[Math.floor(Math.random() * books.length)];
+            dialogue.start(b[0], [b[1]]);
+            gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'enchanting_table') {
+            dialogue.start('Enchanting Table', [
+                'The runes glow with ancient power...',
+                'Bookshelves amplify its magic. The more, the stronger.',
+                'Lapis lazuli is required for enchanting. Spend wisely.',
+            ]);
+            gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'lectern') {
+            dialogue.start('Lectern', [
+                '"The world is made of blocks, but the universe is made of stories." - Herobrine',
+                'A copy of "Crafting Recipes Vol. XII" lies open.',
+                'Recipe of the day: 8 obsidian + 1 eye of ender = Nether portal frame.',
+            ]);
+            gameState.change(States.DIALOGUE);
+        }
+    }
+}
+
+function enterHome() {
+    savePoint = { x: player.x, y: player.y, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inHome = true;
+        inShop = false;
+        inDungeon = false;
+        inLibrary = false;
+        player.x = HOME_SPAWN_X;
+        player.y = HOME_SPAWN_Y;
+        camera.x = 0;
+        camera.y = 0;
+        music.play('shop');
+    };
+}
+
+function exitHome() {
+    const exitX = 24 * TILE_SIZE + TILE_SIZE / 2;
+    const exitY = 9 * TILE_SIZE + TILE_SIZE / 2;
+    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inHome = false;
+        player.x = exitX;
+        player.y = exitY;
+        music.play('overworld');
+    };
+}
+
+function updateHomeInterior() {
+    updateTileAnimations();
+
+    const solidEntities = [];
+    for (const npc of homeNpcs) {
+        solidEntities.push({ x: npc.collX, y: npc.collY, w: npc.w, h: npc.h, solid: true });
+    }
+
+    player.update(homeMap, solidEntities);
+    for (const npc of homeNpcs) npc.update();
+
+    if (checkPlayerDeath()) return;
+
+    if (input.secondary && !player.blocking) player.startBlock();
+
+    if (input.action) {
+        const nearInteract = checkNearHomeInteract();
+        if (nearInteract) {
+            tryHomeInteract();
+        } else {
+            if (!player.attack()) tryHomeInteract();
+        }
+    }
+
+    updateArrows(homeMap);
+    if (player.bowReleased) { player.bowReleased = false; spawnArrow(); }
+    updateDrops();
+
+    camera.follow(player.x, player.y, homeMap[0].length, homeMap.length);
+    camera.update();
+
+    const playerRow = Math.floor(player.y / TILE_SIZE);
+    if (playerRow >= homeMap.length - 1) exitHome();
+
+    if (input.inventory) { invSelectedIndex = 0; gameState.change(States.INVENTORY); }
+    if (input.start) { saveMenuOption = 0; gameState.change(States.SAVE_MENU); }
+}
+
+function checkNearHomeInteract() {
+    const point = player.getInteractPoint();
+    for (const npc of homeNpcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) return true;
+    }
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    if (row >= 0 && row < homeMap.length && col >= 0 && col < homeMap[0].length) {
+        const props = tileProps[homeMap[row][col]];
+        if (props?.interact) return true;
+    }
+    return false;
+}
+
+function tryHomeInteract() {
+    const point = player.getInteractPoint();
+    for (const npc of homeNpcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) {
+            dialogue.start(npc.name, [npc.getNextDialogue()]);
+            gameState.change(States.DIALOGUE);
+            return;
+        }
+    }
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    if (row >= 0 && row < homeMap.length && col >= 0 && col < homeMap[0].length) {
+        const tileId = homeMap[row][col];
+        const props = tileProps[tileId];
+        if (props?.interact === 'crafting_table') {
+            dialogue.start('Crafting Table', ['A worn crafting grid. Countless swords made here.', '3x3 grid, endless possibilities...']);
+            gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'bookshelf') {
+            dialogue.start('Bookshelf', ['"Zombie-Proofing Your Home" by Notch Jr.', '"Sleep at night, the mobs won\'t wait."']);
+            gameState.change(States.DIALOGUE);
+        }
+    }
+}
+
 function updateShopInterior() {
     updateTileAnimations();
 
@@ -779,6 +1046,7 @@ function updateShopInterior() {
                         enemy.takeDamage(player.equippedItem.damage, player.x, player.y);
                         if (enemy.hp <= 0 && !shopSkeletonDefeated) {
                             shopSkeletonDefeated = true;
+                            maybeDropHeart(enemy.x, enemy.y);
                             setTimeout(() => {
                                 player.emeralds += 5;
                                 dialogue.start('', ['The skeleton has been defeated!', 'You found 5 emeralds!']);
@@ -921,6 +1189,8 @@ function respawnPlayer() {
         player.y = savePoint.y;
         inDungeon = savePoint.inDungeon || false;
         inShop = savePoint.inShop || false;
+        inLibrary = savePoint.inLibrary || false;
+        inHome = savePoint.inHome || false;
         if (inDungeon && !dungeonCleared) {
             enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
             enemyArrows = [];
@@ -935,7 +1205,7 @@ function respawnPlayer() {
         } else if (inShop) {
             shopEnemies = [];
         }
-        music.play(inDungeon ? 'dungeon' : (inShop ? 'shop' : 'overworld'));
+        music.play(inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome) ? 'shop' : 'overworld'));
         gameState.change(States.PLAYING);
     };
 }
@@ -984,7 +1254,9 @@ function updateDrops() {
             const dist = Math.abs(player.x - drop.x) + Math.abs(player.y - drop.y);
             if (dist < 20) {
                 if (drop.type === 'emerald') player.emeralds += drop.amount;
-                else if (drop.type === 'golden_blueberry') {
+                else if (drop.type === 'heart') {
+                    player.health = Math.min(player.maxHealth, player.health + drop.amount);
+                } else if (drop.type === 'golden_blueberry') {
                     inventory.add(itemDefs.golden_blueberry);
                     player.hasBlueberry = true;
                     dialogue.start('', ['You found the Golden Enchanted Blueberry!']);
@@ -1054,14 +1326,17 @@ function updateArrows(map) {
                 arrow.active = false;
 
                 // Check for dungeon clear
-                if (enemy.hp <= 0 && !dungeonCleared && inDungeon) {
-                    dungeonCleared = true;
-                    const ex = enemy.x, ey = enemy.y;
-                    setTimeout(() => {
-                        spawnDungeonChest(ex, ey);
-                        dialogue.start('', ['The skeleton has been defeated!', 'A chest appeared...']);
-                        gameState.change(States.DIALOGUE);
-                    }, 400);
+                if (enemy.hp <= 0) {
+                    maybeDropHeart(enemy.x, enemy.y);
+                    if (!dungeonCleared && inDungeon) {
+                        dungeonCleared = true;
+                        const ex = enemy.x, ey = enemy.y;
+                        setTimeout(() => {
+                            spawnDungeonChest(ex, ey);
+                            dialogue.start('', ['The skeleton has been defeated!', 'A chest appeared...']);
+                            gameState.change(States.DIALOGUE);
+                        }, 400);
+                    }
                 }
                 break;
             }
@@ -1079,6 +1354,14 @@ function updateArrows(map) {
         }
     }
     arrows = arrows.filter(a => a.active);
+}
+
+function maybeDropHeart(x, y) {
+    const roll = Math.random();
+    if (roll < 0.25) {
+        const amount = roll < 0.12 ? 2 : 1; // 12% full heart, 13% half heart
+        spawnDrop(x, y, { type: 'heart', amount });
+    }
 }
 
 function spawnDrop(x, y, drop) {
@@ -1140,6 +1423,10 @@ function tryInteract() {
 
         if (props?.interact === 'shop') {
             enterShop();
+        } else if (props?.interact === 'library') {
+            enterLibrary();
+        } else if (props?.interact === 'home') {
+            enterHome();
         } else if (props?.interact === 'tablet') {
             dialogue.start('Stone Tablet', ['Place the dark stones upon the marks of power.', 'The path below shall open.']);
             gameState.change(States.DIALOGUE);
@@ -1149,6 +1436,18 @@ function tryInteract() {
         } else if (props?.interact === 'sign') {
             dialogue.start('Sign', ["Blacksmith's Shop - Finest weapons in Craftville!"]);
             gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'secret_bush') {
+            if (!secretBushCollected) {
+                secretBushCollected = true;
+                player.emeralds += 20;
+                // Replace the bush tile with plain grass
+                townMap[28][9] = T.GRASS;
+                dialogue.start('', ['You found a secret stash hidden in the forest!', 'You collected 20 emeralds!!', '(Nice exploring, you found the secret spot!)']);
+                gameState.change(States.DIALOGUE);
+            } else {
+                dialogue.start('', ['Just trees here...']);
+                gameState.change(States.DIALOGUE);
+            }
         }
     }
 }
@@ -1215,6 +1514,9 @@ function performSave(slot) {
         // World
         inDungeon,
         inShop,
+        inLibrary,
+        inHome,
+        secretBushCollected,
         puzzleSolved: puzzle.solved,
         dungeonCleared,
         lockedRoomOpen,
@@ -1262,6 +1564,9 @@ function performRestore(slot) {
     // Restore world flags
     inDungeon = data.inDungeon || false;
     inShop = data.inShop || false;
+    inLibrary = data.inLibrary || false;
+    inHome = data.inHome || false;
+    secretBushCollected = data.secretBushCollected || false;
     dungeonCleared = data.dungeonCleared || false;
     lockedRoomOpen = data.lockedRoomOpen || false;
     enderPearlPickedUp = data.enderPearlPickedUp || false;
@@ -1272,6 +1577,11 @@ function performRestore(slot) {
     if (data.puzzleSolved) {
         puzzle.solved = true;
         openDungeonEntrance();
+    }
+
+    // Restore secret bush tile (if already collected, it becomes grass)
+    if (data.secretBushCollected) {
+        townMap[28][9] = T.GRASS;
     }
 
     // Restore locked dungeon door
@@ -1306,7 +1616,7 @@ function performRestore(slot) {
 
     camera.x = 0;
     camera.y = 0;
-    music.play(inDungeon ? 'dungeon' : (inShop ? 'shop' : 'overworld'));
+    music.play(inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome) ? 'shop' : 'overworld'));
     gameState.change(States.PLAYING);
 }
 
@@ -1468,30 +1778,22 @@ function render() {
         case States.NAME_ENTRY: renderNameEntry(); break;
         case States.CHARACTER_SELECT: renderCharacterSelect(); break;
         case States.SAVE_MENU:
-            if (inDungeon) renderDungeonScene();
-            else if (inShop) renderShopScene();
-            else renderTownScene();
+            renderCurrentScene();
             renderSaveMenu();
             break;
         case States.SAVE_SLOTS:
-            if (inDungeon) renderDungeonScene();
-            else if (inShop) renderShopScene();
-            else renderTownScene();
+            renderCurrentScene();
             renderSaveSlots();
             break;
         case States.RESTORE_SLOTS:
-            if (inDungeon) renderDungeonScene();
-            else if (inShop) renderShopScene();
-            else renderTownScene();
+            renderCurrentScene();
             renderRestoreSlots();
             break;
         case States.PLAYING:
         case States.DIALOGUE:
         case States.INVENTORY:
         case States.SHOP:
-            if (inDungeon) renderDungeonScene();
-            else if (inShop) renderShopScene();
-            else renderTownScene();
+            renderCurrentScene();
             if (gameState.current === States.DIALOGUE) dialogue.render(ctx);
             if (gameState.current === States.INVENTORY) renderInventoryUI();
             if (gameState.current === States.SHOP) renderShopUI();
@@ -1574,6 +1876,14 @@ function renderCharacterSelect() {
         ctx.fillStyle = '#fff';
         drawSmallText(ctx, 'Press ENTER to Confirm', VIRTUAL_WIDTH / 2 - 66, VIRTUAL_HEIGHT - 30);
     }
+}
+
+function renderCurrentScene() {
+    if (inDungeon) renderDungeonScene();
+    else if (inShop) renderShopScene();
+    else if (inLibrary) renderLibraryScene();
+    else if (inHome) renderHomeScene();
+    else renderTownScene();
 }
 
 function renderTownScene() {
@@ -1790,6 +2100,72 @@ function renderShopScene() {
     drawSmallText(ctx, "Blacksmith's Shop", VIRTUAL_WIDTH / 2 - 51, 2);
 }
 
+function renderLibraryScene() {
+    const camX = camera.getDrawX();
+    const camY = camera.getDrawY();
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    renderMap(ctx, libraryMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
+
+    const entities = [];
+    for (const npc of libraryNpcs) {
+        entities.push({ y: npc.y, render: () => npc.render(ctx) });
+    }
+    entities.push({ y: player.y, render: () => player.render(ctx) });
+    for (const drop of drops) {
+        if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
+    }
+    for (const arrow of arrows) {
+        if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
+
+    entities.sort((a, b) => a.y - b.y);
+    for (const ent of entities) ent.render();
+
+    renderMap(ctx, libraryMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 2);
+
+    ctx.restore();
+    renderHUD(ctx, player);
+
+    ctx.fillStyle = '#888';
+    drawSmallText(ctx, 'Library', VIRTUAL_WIDTH / 2 - 18, 2);
+}
+
+function renderHomeScene() {
+    const camX = camera.getDrawX();
+    const camY = camera.getDrawY();
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    renderMap(ctx, homeMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
+
+    const entities = [];
+    for (const npc of homeNpcs) {
+        entities.push({ y: npc.y, render: () => npc.render(ctx) });
+    }
+    entities.push({ y: player.y, render: () => player.render(ctx) });
+    for (const drop of drops) {
+        if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
+    }
+    for (const arrow of arrows) {
+        if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
+
+    entities.sort((a, b) => a.y - b.y);
+    for (const ent of entities) ent.render();
+
+    renderMap(ctx, homeMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 2);
+
+    ctx.restore();
+    renderHUD(ctx, player);
+
+    ctx.fillStyle = '#888';
+    drawSmallText(ctx, "Steve's House", VIRTUAL_WIDTH / 2 - 33, 2);
+}
+
 function renderDrop(ctx, drop) {
     if (drop.type === 'emerald') {
         ctx.fillStyle = '#2D8B46';
@@ -1798,6 +2174,21 @@ function renderDrop(ctx, drop) {
         ctx.fillRect(drop.x - 3, drop.y + 2, 6, 1);
         ctx.fillStyle = '#5FD394';
         ctx.fillRect(drop.x - 2, drop.y - 1, 4, 2);
+    } else if (drop.type === 'heart') {
+        // Heart shape pixel art
+        const c = drop.amount >= 2 ? '#CC2222' : '#CC7777'; // full=red, half=pink
+        ctx.fillStyle = c;
+        ctx.fillRect(drop.x - 4, drop.y - 2, 3, 3);
+        ctx.fillRect(drop.x + 1, drop.y - 2, 3, 3);
+        ctx.fillRect(drop.x - 5, drop.y - 1, 10, 3);
+        ctx.fillRect(drop.x - 4, drop.y + 2, 8, 2);
+        ctx.fillRect(drop.x - 3, drop.y + 4, 6, 1);
+        ctx.fillRect(drop.x - 2, drop.y + 5, 4, 1);
+        ctx.fillRect(drop.x - 1, drop.y + 6, 2, 1);
+        if (drop.amount >= 2) {
+            ctx.fillStyle = '#FF6666';
+            ctx.fillRect(drop.x - 3, drop.y - 1, 2, 2);
+        }
     } else if (drop.type === 'golden_blueberry') {
         ctx.fillStyle = '#FFD700';
         ctx.fillRect(drop.x - 4, drop.y - 4, 8, 8);

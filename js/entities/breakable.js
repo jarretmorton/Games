@@ -67,6 +67,16 @@ export class Breakable {
             return { type: 'golden_blueberry' };
         }
 
+        // Pots have a small chance to drop a heart (health pickup)
+        if (this.type === 'pot') {
+            const roll = Math.random();
+            if (roll < 0.12) return { type: 'heart', amount: 2 }; // full heart
+            if (roll < 0.22) return { type: 'heart', amount: 1 }; // half heart
+            if (roll < 0.72) return { type: 'emerald', amount: 1 };
+            if (roll < 0.80) return { type: 'emerald', amount: 3 };
+            return null;
+        }
+
         const roll = Math.random();
         if (roll < 0.6) return { type: 'emerald', amount: 1 };
         if (roll < 0.7) return { type: 'emerald', amount: 3 };
