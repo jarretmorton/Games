@@ -13,6 +13,9 @@ const TC = T.TREE_TOP;
 const FE = T.FENCE;
 const DS = T.DOOR_SHOP;
 const DH = T.DOOR_HOUSE;
+const DL = T.DOOR_LIBRARY;
+const DO = T.DOOR_HOME;
+const SB = T.SECRET_BUSH;
 const CB = T.COBBLESTONE;
 const SA = T.SAND;
 const FR = T.FLOWER_RED;
@@ -51,8 +54,8 @@ export const townMap = [
     [G, G, G, G, G, G, WW,RW,RW,RW,WW,G, G, G, G, CB,CB,G, G, G, G, G, WW,RW,RW,RW,WW,G, G, G, G, G, G, G, G, FY,G, G, G, G],
     // Row 8 - House 1 door + House 2 door
     [G, G, FY,G, G, G, WW,RW,RW,RW,WW,G, G, G, G, CB,CB,G, G, G, G, G, WW,RW,RW,RW,WW,G, G, G, G, G, G, G, G, G, G, G, G, G],
-    // Row 9 - House fronts
-    [G, G, G, G, G, G, WW,WW,DH,WW,WW,G, G, G, FO,FO,FO,G, G, G, G, G, WW,WW,DH,WW,WW,G, G, G, G, G, G, G, G, G, G, FR,G, G],
+    // Row 9 - House fronts (col 8 = library door, col 24 = home door)
+    [G, G, G, G, G, G, WW,WW,DL,WW,WW,G, G, G, FO,FO,FO,G, G, G, G, G, WW,WW,DO,WW,WW,G, G, G, G, G, G, G, G, G, G, FR,G, G],
     // Row 10 - Path in front of houses + fountain center
     [G, G, G, G, G, G, G, G, D, G, G, G, G, G, FO,FO,FO,G, G, G, G, G, G, G, D, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
     // Row 11 - Main cobblestone road
@@ -89,8 +92,8 @@ export const townMap = [
     [G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
     // Row 27 - Trees bottom
     [TT,TC,G, G, G, FY,G, G, G, G, G, TT,TC,G, G, G, G, G, G, G, G, G, G, G, G, G, TT,TC,G, G, G, G, G, G, FR,G, G, TT,TC,G],
-    // Row 28 - Trees bottom
-    [TC,TT,TC,G, G, G, G, G, TT,TC,TC,TC,TT,TC,G, G, G, G, G, G, G, G, G, G, TT,TC,TC,TT,TC,G, G, G, G, TT,TC,TC,TC,TC,TT,TC],
+    // Row 28 - Trees bottom (col 9 = secret bush hidden in forest)
+    [TC,TT,TC,G, G, G, G, G, TT,SB,TC,TC,TT,TC,G, G, G, G, G, G, G, G, G, G, TT,TC,TC,TT,TC,G, G, G, G, TT,TC,TC,TC,TC,TT,TC],
     // Row 29 - Bottom border: trees
     [TC,TC,TT,TC,TC,TT,TC,TC,TC,TT,TC,TC,TC,TT,TC,TC,TT,TC,TC,TT,TC,TC,TT,TC,TC,TT,TC,TC,TT,TC,TC,TT,TC,TC,TT,TC,TC,TT,TC,TC],
 ];

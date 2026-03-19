@@ -269,6 +269,135 @@ function drawTile(ctx, tileId, props, x, y) {
         // Just floor - the cage/skeleton is drawn as an entity overlay
     }
 
+    // Library/Home doors (render like shop door with a different color accent)
+    if (props?.interact === 'library') {
+        ctx.fillStyle = '#7A5C12';
+        ctx.fillRect(x + 10, y + 2, 12, s - 2);
+        ctx.fillStyle = '#3366CC';
+        ctx.fillRect(x + 12, y + 6, 8, 4); // blue book accent
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x + 20, y + 14, 2, 2);
+    }
+
+    if (props?.interact === 'home') {
+        ctx.fillStyle = '#6B4226';
+        ctx.fillRect(x + 10, y + 2, 12, s - 2);
+        ctx.fillStyle = '#CC4444';
+        ctx.fillRect(x + 12, y + 5, 8, 5); // red flower pot accent
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x + 20, y + 14, 2, 2);
+    }
+
+    // Bed tile
+    if (tileId === 42) { // T.BED
+        ctx.fillStyle = '#AA2222';
+        ctx.fillRect(x, y, s, s);
+        // Pillow
+        ctx.fillStyle = '#EEEEEE';
+        ctx.fillRect(x + 3, y + 3, 12, 10);
+        // Blanket
+        ctx.fillStyle = '#CC4444';
+        ctx.fillRect(x + 3, y + 14, 26, 14);
+        ctx.fillStyle = '#AA2222';
+        ctx.fillRect(x + 6, y + 16, 20, 2);
+        ctx.fillRect(x + 6, y + 20, 20, 2);
+        // Frame
+        ctx.fillStyle = '#6B4226';
+        ctx.fillRect(x, y, 3, s);
+        ctx.fillRect(x + 29, y, 3, s);
+    }
+
+    // Furnace tile
+    if (tileId === 43) { // T.FURNACE
+        ctx.fillStyle = '#444444';
+        ctx.fillRect(x, y, s, s);
+        // Stone body
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(x + 2, y + 2, s - 4, s - 4);
+        // Furnace door
+        ctx.fillStyle = '#222222';
+        ctx.fillRect(x + 8, y + 16, 16, 12);
+        // Fire glow (animated)
+        ctx.fillStyle = animFrame === 1 ? '#FF6600' : '#FF4400';
+        ctx.fillRect(x + 10, y + 18, 12, 8);
+        ctx.fillStyle = '#FFCC00';
+        ctx.fillRect(x + 12, y + 20, 8, 4);
+        // Top slots
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(x + 8, y + 4, 16, 10);
+        ctx.fillStyle = '#666666';
+        ctx.fillRect(x + 10, y + 6, 12, 6);
+    }
+
+    // Enchanting Table tile
+    if (props?.interact === 'enchanting_table') {
+        // Dark base
+        ctx.fillStyle = '#220044';
+        ctx.fillRect(x, y, s, s);
+        // Purple book pedestal
+        ctx.fillStyle = '#550088';
+        ctx.fillRect(x + 4, y + 16, 24, 12);
+        ctx.fillStyle = '#7700AA';
+        ctx.fillRect(x + 6, y + 14, 20, 8);
+        // Open book on top
+        ctx.fillStyle = '#CC0000';
+        ctx.fillRect(x + 7, y + 5, 10, 8);
+        ctx.fillStyle = '#FF2222';
+        ctx.fillRect(x + 8, y + 6, 8, 6);
+        ctx.fillStyle = '#CC0000';
+        ctx.fillRect(x + 17, y + 5, 8, 8);
+        ctx.fillStyle = '#FF2222';
+        ctx.fillRect(x + 18, y + 6, 6, 6);
+        // Page line divider
+        ctx.fillStyle = '#660000';
+        ctx.fillRect(x + 15, y + 5, 2, 8);
+        // Floating runes (animated)
+        ctx.fillStyle = animFrame === 1 ? '#AA88FF' : '#8866DD';
+        ctx.fillRect(x + 4, y + 2, 2, 2);
+        ctx.fillRect(x + 26, y + 3, 2, 2);
+        ctx.fillRect(x + 14, y + 1, 2, 2);
+    }
+
+    // Secret Bush tile (looks like dark tree top - blends with forest)
+    if (props?.interact === 'secret_bush') {
+        // Render exactly like a tree top so it's hidden
+        ctx.fillStyle = '#2D5A1E';
+        ctx.fillRect(x, y, s, s);
+        ctx.fillStyle = '#3D6B22';
+        ctx.fillRect(x + 4, y + 4, 8, 8);
+        ctx.fillRect(x + 20, y + 16, 8, 8);
+        ctx.fillStyle = '#1E4A12';
+        ctx.fillRect(x + 12, y + 12, 8, 8);
+        // Very subtle sparkle when looking closely
+        if (animFrame === 1) {
+            ctx.fillStyle = 'rgba(100, 220, 100, 0.3)';
+            ctx.fillRect(x + 13, y + 13, 4, 4);
+        }
+    }
+
+    // Lectern tile
+    if (props?.interact === 'lectern') {
+        ctx.fillStyle = '#6B4226';
+        ctx.fillRect(x, y, s, s);
+        // Wooden post
+        ctx.fillStyle = '#8B5A2B';
+        ctx.fillRect(x + 13, y + 10, 6, 18);
+        // Base
+        ctx.fillStyle = '#7A4A20';
+        ctx.fillRect(x + 6, y + 24, 20, 4);
+        // Reading surface
+        ctx.fillStyle = '#8B6914';
+        ctx.fillRect(x + 6, y + 4, 20, 10);
+        // Book on lectern
+        ctx.fillStyle = '#CC3333';
+        ctx.fillRect(x + 9, y + 5, 14, 8);
+        ctx.fillStyle = '#EEEEEE';
+        ctx.fillRect(x + 11, y + 6, 10, 5);
+        ctx.fillStyle = '#999999';
+        ctx.fillRect(x + 11, y + 8, 10, 1);
+        ctx.fillRect(x + 15, y + 6, 1, 5);
+    }
+
     // Fancy enchanted floor
     if (tileId === 39) { // T.FANCY_FLOOR
         // Dark purple stone with magical inlay
