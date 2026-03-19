@@ -13,6 +13,7 @@ const TC = T.TREE_TOP;
 const FE = T.FENCE;
 const DS = T.DOOR_SHOP;
 const DH = T.DOOR_HOUSE;
+const DA = T.DOOR_ALCH;
 const DL = T.DOOR_LIBRARY;
 const DO = T.DOOR_HOME;
 const SB = T.SECRET_BUSH;
@@ -70,8 +71,8 @@ export const townMap = [
     [G, G, G, G, G, G, WW,RW,RW,RW,WW,G, G, G, G, G, G, G, G, G, G, G, G, WW,RW,RW,RW,WW,G, G, G, G, G, G, G, G, G, G, G, G],
     // Row 16 - Shop body + House 3 body
     [G, G, FR,G, G, G, WW,RW,RW,RW,WW,G, G, G, G, G, FY,G, G, G, G, G, G, WW,RW,RW,RW,WW,G, G, G, G, G, G, G, G, G, G, G, G],
-    // Row 17 - Shop door + House 3 door
-    [G, G, G, G, G, G, WW,WW,DS,WW,WW,G, G, G, G, G, G, G, G, G, G, G, G, WW,WW,DH,WW,WW,G, G, G, G, G, FR,G, G, G, G, G, G],
+    // Row 17 - Shop door + Alchemist's Workshop door
+    [G, G, G, G, G, G, WW,WW,DS,WW,WW,G, G, G, G, G, G, G, G, G, G, G, G, WW,WW,DA,WW,WW,G, G, G, G, G, FR,G, G, G, G, G, G],
     // Row 18 - Grass patches with breakables
     [G, G, G, G, G, G, G, G, D, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, D, G, G, G, G, G, G, G, G, G, G, G, G, G, G],
     // Row 19 - Open grass area

@@ -8,11 +8,12 @@ import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SP
 import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELETON_X, SKELETON_Y, CRAFTING_TABLE_COL, CRAFTING_TABLE_ROW } from './world/shopMap.js';
 import { libraryMap, LIBRARY_SPAWN_X, LIBRARY_SPAWN_Y, LIBRARY_NPC_X, LIBRARY_NPC_Y } from './world/libraryMap.js';
 import { homeMap, HOME_SPAWN_X, HOME_SPAWN_Y, HOME_NPC_X, HOME_NPC_Y } from './world/homeMap.js';
+import { alchemistMap, ALCHEMIST_SPAWN_X, ALCHEMIST_SPAWN_Y } from './world/alchemistMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
 import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton, drawChest } from './rendering/sprites.js';
 import { createNPCs } from './entities/npc.js';
-import { npcData, shopkeeperData, libraryNpcData, homeNpcData } from './data/npcs.js';
+import { npcData, shopkeeperData, libraryNpcData, homeNpcData, alchemistNpcData } from './data/npcs.js';
 import { dialogue } from './rendering/dialogue.js';
 import { createBreakables } from './entities/breakable.js';
 import { renderHUD } from './rendering/hud.js';
@@ -27,7 +28,7 @@ import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
 
-export const VERSION = '1.1.2';
+export const VERSION = '1.1.3';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -76,6 +77,10 @@ let libraryNpcs = [];
 // Home interior state
 let inHome = false;
 let homeNpcs = [];
+
+// Alchemist interior state
+let inAlchemist = false;
+let alchemistNpcs = [];
 
 // Secret bush state (one-time reward)
 let secretBushCollected = false;
@@ -232,8 +237,10 @@ function startGame() {
     shopSkeletonDefeated = false;
     libraryNpcs = createNPCs([libraryNpcData]);
     homeNpcs = createNPCs([homeNpcData]);
+    alchemistNpcs = createNPCs([alchemistNpcData]);
     inLibrary = false;
     inHome = false;
+    inAlchemist = false;
 
     // Hook up weapon purchase callback to free the skeleton
     shop.onWeaponPurchased = () => {
@@ -305,6 +312,7 @@ function update() {
             else if (inShop) updateShopInterior();
             else if (inLibrary) updateLibraryInterior();
             else if (inHome) updateHomeInterior();
+            else if (inAlchemist) updateAlchemistInterior();
             else updatePlaying();
             break;
 
@@ -448,6 +456,8 @@ function updatePlaying() {
                 enterLibrary();
             } else if (interact === 'home' && !transition.active) {
                 enterHome();
+            } else if (interact === 'alchemist' && !transition.active) {
+                enterAlchemist();
             }
         }
     }
@@ -908,6 +918,40 @@ function exitHome() {
     };
 }
 
+function enterAlchemist() {
+    savePoint = { x: player.x, y: player.y, inDungeon: false, inShop: false, inLibrary: false, inHome: false, inAlchemist: false };
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inAlchemist = true;
+        inShop = false;
+        inDungeon = false;
+        inLibrary = false;
+        inHome = false;
+        player.x = ALCHEMIST_SPAWN_X;
+        player.y = ALCHEMIST_SPAWN_Y;
+        camera.x = 0;
+        camera.y = 0;
+        music.play('shop');
+    };
+}
+
+function exitAlchemist() {
+    const exitX = 25 * TILE_SIZE + TILE_SIZE / 2;
+    const exitY = 18 * TILE_SIZE + TILE_SIZE / 2;
+    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false, inLibrary: false, inHome: false, inAlchemist: false };
+    transition.active = true;
+    transition.timer = 0;
+    transition.maxTime = 20;
+    transition.callback = () => {
+        inAlchemist = false;
+        player.x = exitX;
+        player.y = exitY;
+        music.play('overworld');
+    };
+}
+
 function updateHomeInterior() {
     updateTileAnimations();
 
@@ -981,6 +1025,90 @@ function tryHomeInteract() {
             gameState.change(States.DIALOGUE);
         } else if (props?.interact === 'bookshelf') {
             dialogue.start('Bookshelf', ['"Zombie-Proofing Your Home" by Notch Jr.', '"Sleep at night, the mobs won\'t wait."']);
+            gameState.change(States.DIALOGUE);
+        }
+    }
+}
+
+function updateAlchemistInterior() {
+    updateTileAnimations();
+
+    const solidEntities = [];
+    for (const npc of alchemistNpcs) {
+        solidEntities.push({ x: npc.collX, y: npc.collY, w: npc.w, h: npc.h, solid: true });
+    }
+
+    player.update(alchemistMap, solidEntities);
+    for (const npc of alchemistNpcs) npc.update();
+
+    if (checkPlayerDeath()) return;
+
+    if (input.secondary && !player.blocking) player.startBlock();
+
+    if (input.action) {
+        const nearInteract = checkNearAlchemistInteract();
+        if (nearInteract) {
+            tryAlchemistInteract();
+        } else {
+            if (!player.attack()) tryAlchemistInteract();
+        }
+    }
+
+    updateArrows(alchemistMap);
+    if (player.bowReleased) { player.bowReleased = false; spawnArrow(); }
+    updateDrops();
+
+    camera.follow(player.x, player.y, alchemistMap[0].length, alchemistMap.length);
+    camera.update();
+
+    const playerRow = Math.floor(player.y / TILE_SIZE);
+    if (playerRow >= alchemistMap.length - 1) exitAlchemist();
+
+    if (input.inventory) { invSelectedIndex = 0; gameState.change(States.INVENTORY); }
+    if (input.start) { saveMenuOption = 0; gameState.change(States.SAVE_MENU); }
+}
+
+function checkNearAlchemistInteract() {
+    const point = player.getInteractPoint();
+    for (const npc of alchemistNpcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) return true;
+    }
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    if (row >= 0 && row < alchemistMap.length && col >= 0 && col < alchemistMap[0].length) {
+        const props = tileProps[alchemistMap[row][col]];
+        if (props?.interact) return true;
+    }
+    return false;
+}
+
+function tryAlchemistInteract() {
+    const point = player.getInteractPoint();
+    for (const npc of alchemistNpcs) {
+        const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
+        if (dist < 24) {
+            dialogue.start(npc.name, [npc.getNextDialogue()]);
+            gameState.change(States.DIALOGUE);
+            return;
+        }
+    }
+    const col = Math.floor(point.x / TILE_SIZE);
+    const row = Math.floor(point.y / TILE_SIZE);
+    if (row >= 0 && row < alchemistMap.length && col >= 0 && col < alchemistMap[0].length) {
+        const tileId = alchemistMap[row][col];
+        const props = tileProps[tileId];
+        if (props?.interact === 'enchanting_table') {
+            dialogue.start('Enchanting Table', ['Arcane runes pulse with energy from The End.', 'The formulae are... untranslatable to the common tongue.']);
+            gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'bookshelf') {
+            dialogue.start('Bookshelf', ['"Forbidden Experiments, Vol. III: Catalogued by Explosion Radius."', '"Do NOT mix blaze powder with spider eyes unsupervised."']);
+            gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'crafting_table') {
+            dialogue.start('Lab Bench', ['Not for crafting — for dissecting. Very different.', 'Residue of ender pearl, obsidian dust, and something unidentified.']);
+            gameState.change(States.DIALOGUE);
+        } else if (props?.interact === 'lectern') {
+            dialogue.start('Grimoire', ['"To bind an ender pearl: speak thrice, duck, and do not blink."', '"Phase II: unknown. Phase III: definitely unknown. Results: pending."']);
             gameState.change(States.DIALOGUE);
         }
     }
@@ -1191,6 +1319,7 @@ function respawnPlayer() {
         inShop = savePoint.inShop || false;
         inLibrary = savePoint.inLibrary || false;
         inHome = savePoint.inHome || false;
+        inAlchemist = savePoint.inAlchemist || false;
         if (inDungeon && !dungeonCleared) {
             enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
             enemyArrows = [];
@@ -1205,7 +1334,7 @@ function respawnPlayer() {
         } else if (inShop) {
             shopEnemies = [];
         }
-        music.play(inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome) ? 'shop' : 'overworld'));
+        music.play(inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome || inAlchemist) ? 'shop' : 'overworld'));
         gameState.change(States.PLAYING);
     };
 }
@@ -1427,6 +1556,8 @@ function tryInteract() {
             enterLibrary();
         } else if (props?.interact === 'home') {
             enterHome();
+        } else if (props?.interact === 'alchemist') {
+            enterAlchemist();
         } else if (props?.interact === 'tablet') {
             dialogue.start('Stone Tablet', ['Place the dark stones upon the marks of power.', 'The path below shall open.']);
             gameState.change(States.DIALOGUE);
@@ -1516,6 +1647,7 @@ function performSave(slot) {
         inShop,
         inLibrary,
         inHome,
+        inAlchemist,
         secretBushCollected,
         puzzleSolved: puzzle.solved,
         dungeonCleared,
@@ -1566,6 +1698,7 @@ function performRestore(slot) {
     inShop = data.inShop || false;
     inLibrary = data.inLibrary || false;
     inHome = data.inHome || false;
+    inAlchemist = data.inAlchemist || false;
     secretBushCollected = data.secretBushCollected || false;
     dungeonCleared = data.dungeonCleared || false;
     lockedRoomOpen = data.lockedRoomOpen || false;
@@ -1883,6 +2016,7 @@ function renderCurrentScene() {
     else if (inShop) renderShopScene();
     else if (inLibrary) renderLibraryScene();
     else if (inHome) renderHomeScene();
+    else if (inAlchemist) renderAlchemistScene();
     else renderTownScene();
 }
 
@@ -2164,6 +2298,39 @@ function renderHomeScene() {
 
     ctx.fillStyle = '#888';
     drawSmallText(ctx, "Steve's House", VIRTUAL_WIDTH / 2 - 33, 2);
+}
+
+function renderAlchemistScene() {
+    const camX = camera.getDrawX();
+    const camY = camera.getDrawY();
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    renderMap(ctx, alchemistMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
+
+    const entities = [];
+    for (const npc of alchemistNpcs) {
+        entities.push({ y: npc.y, render: () => npc.render(ctx) });
+    }
+    entities.push({ y: player.y, render: () => player.render(ctx) });
+    for (const drop of drops) {
+        if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
+    }
+    for (const arrow of arrows) {
+        if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
+
+    entities.sort((a, b) => a.y - b.y);
+    for (const ent of entities) ent.render();
+
+    renderMap(ctx, alchemistMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 2);
+
+    ctx.restore();
+    renderHUD(ctx, player);
+
+    ctx.fillStyle = '#BB88FF';
+    drawSmallText(ctx, "Zara's Workshop", VIRTUAL_WIDTH / 2 - 42, 2);
 }
 
 function renderDrop(ctx, drop) {

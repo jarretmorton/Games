@@ -49,6 +49,7 @@ export const T = {
     ENCHANTING_TABLE: 44,
     SECRET_BUSH: 45,
     LECTERN: 46,
+    DOOR_ALCH: 47,
 };
 
 export const tileProps = {
@@ -99,4 +100,5 @@ export const tileProps = {
     [T.ENCHANTING_TABLE]: { solid: true,  color: '#330066', color2: '#220044', interact: 'enchanting_table' },
     [T.SECRET_BUSH]:      { solid: false, color: '#2D5A1E', color2: '#1E4A12', interact: 'secret_bush' },
     [T.LECTERN]:          { solid: true,  color: '#7A5C12', color2: '#6B4226', interact: 'lectern' },
+    [T.DOOR_ALCH]:        { solid: false, color: '#3D1A5A', color2: '#2A1040', interact: 'alchemist' },
 };
