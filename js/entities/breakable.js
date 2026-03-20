@@ -56,6 +56,7 @@ export class Breakable {
         switch (this.type) {
             case 'grass': return ['#4A7628', '#5B8731', '#3D6B22'];
             case 'pot': return ['#8B6914', '#A67C1A', '#6B5010'];
+            case 'heart_pot': return ['#CC2222', '#FF4444', '#8B6914'];
             case 'bush': return ['#2D5A1E', '#3D6B22', '#4A7628'];
             case 'golden_pot': return ['#8B6914', '#FFD700', '#A67C1A'];
             default: return ['#888'];
@@ -67,20 +68,28 @@ export class Breakable {
             return { type: 'golden_blueberry' };
         }
 
-        // Pots have a small chance to drop a heart (health pickup)
+        // Heart pots always drop a full heart
+        if (this.type === 'heart_pot') {
+            return { type: 'heart', amount: 2 };
+        }
+
+        // Pots: 25% total heart chance
         if (this.type === 'pot') {
             const roll = Math.random();
-            if (roll < 0.12) return { type: 'heart', amount: 2 }; // full heart
-            if (roll < 0.22) return { type: 'heart', amount: 1 }; // half heart
-            if (roll < 0.72) return { type: 'emerald', amount: 1 };
-            if (roll < 0.80) return { type: 'emerald', amount: 3 };
+            if (roll < 0.15) return { type: 'heart', amount: 2 }; // full heart
+            if (roll < 0.25) return { type: 'heart', amount: 1 }; // half heart
+            if (roll < 0.75) return { type: 'emerald', amount: 1 };
+            if (roll < 0.83) return { type: 'emerald', amount: 3 };
             return null;
         }
 
+        // Bushes and grass: 25% heart chance
         const roll = Math.random();
-        if (roll < 0.6) return { type: 'emerald', amount: 1 };
-        if (roll < 0.7) return { type: 'emerald', amount: 3 };
-        return null; // No drop
+        if (roll < 0.15) return { type: 'heart', amount: 2 }; // full heart
+        if (roll < 0.25) return { type: 'heart', amount: 1 }; // half heart
+        if (roll < 0.70) return { type: 'emerald', amount: 1 };
+        if (roll < 0.78) return { type: 'emerald', amount: 3 };
+        return null;
     }
 
     update() {

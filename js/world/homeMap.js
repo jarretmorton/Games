@@ -29,3 +29,8 @@ export const HOME_SPAWN_Y = 4 * 32 + 16;
 // Resident NPC position (tile coords)
 export const HOME_NPC_X = 5;
 export const HOME_NPC_Y = 2;
+
+// Interior breakables
+export const homeBreakablePositions = [
+    { tileX: 1, tileY: 3, type: 'heart_pot' },
+];
