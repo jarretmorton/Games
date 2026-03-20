@@ -6,6 +6,7 @@ let audioCtx = null;
 let masterGain = null;
 let isPlaying = false;
 let currentTrack = null;
+let loopGeneration = 0; // Incremented on every stop() to cancel old loops
 
 // Note frequencies
 const NOTE = {
@@ -195,8 +196,8 @@ function scheduleTrack(melody, startTime, type, gain) {
     return totalDuration;
 }
 
-function playLoop(melodyParts, trackId) {
-    if (!audioCtx || currentTrack !== trackId) return;
+function playLoop(melodyParts, trackId, generation) {
+    if (!audioCtx || currentTrack !== trackId || loopGeneration !== generation) return;
 
     const now = audioCtx.currentTime + 0.1;
     let maxDuration = 0;
@@ -207,7 +208,7 @@ function playLoop(melodyParts, trackId) {
     }
 
     // Schedule next loop
-    setTimeout(() => playLoop(melodyParts, trackId), (maxDuration - 0.5) * 1000);
+    setTimeout(() => playLoop(melodyParts, trackId, generation), (maxDuration - 0.5) * 1000);
 }
 
 export const music = {
@@ -222,39 +223,39 @@ export const music = {
 
         currentTrack = track;
         isPlaying = true;
+        const gen = loopGeneration;
 
         if (track === 'overworld') {
             playLoop([
                 { notes: overworldMelody, type: 'triangle', gain: 0.4 },
                 { notes: overworldBass, type: 'sine', gain: 0.25 },
                 { notes: overworldArpeggio, type: 'sine', gain: 0.12 },
-            ], track);
+            ], track, gen);
         } else if (track === 'dungeon') {
             playLoop([
                 { notes: dungeonMelody, type: 'square', gain: 0.15 },
                 { notes: dungeonBass, type: 'sine', gain: 0.2 },
-            ], track);
+            ], track, gen);
         } else if (track === 'shop') {
             playLoop([
                 { notes: shopMelody, type: 'triangle', gain: 0.3 },
                 { notes: shopBass, type: 'sine', gain: 0.2 },
                 { notes: shopArpeggio, type: 'sine', gain: 0.1 },
-            ], track);
+            ], track, gen);
         }
     },
 
     stop() {
+        loopGeneration++; // Invalidates all pending playLoop callbacks
         currentTrack = null;
         isPlaying = false;
-        // Fade out any currently playing notes by resetting the audio graph
+        // Disconnect the current gain node so pre-scheduled oscillators go silent
+        // immediately, then create a fresh node for the next track
         if (audioCtx && masterGain) {
-            masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
-            masterGain.gain.setValueAtTime(masterGain.gain.value, audioCtx.currentTime);
-            masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
-            // Restore gain after fade for next track
-            setTimeout(() => {
-                if (masterGain) masterGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            }, 200);
+            masterGain.disconnect();
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = 0.3;
+            masterGain.connect(audioCtx.destination);
         }
     },
 

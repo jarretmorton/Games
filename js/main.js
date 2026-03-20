@@ -6,9 +6,9 @@ import { renderMap, updateTileAnimations } from './world/tilemap.js';
 import { townMap, SPAWN_X, SPAWN_Y, breakablePositions } from './world/townMap.js';
 import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, LOCKED_DOOR_ROW, LOCKED_DOOR_COLS, ENDER_PEARL_X, ENDER_PEARL_Y } from './world/dungeonMap.js';
 import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELETON_X, SKELETON_Y, CRAFTING_TABLE_COL, CRAFTING_TABLE_ROW } from './world/shopMap.js';
-import { libraryMap, LIBRARY_SPAWN_X, LIBRARY_SPAWN_Y, LIBRARY_NPC_X, LIBRARY_NPC_Y } from './world/libraryMap.js';
-import { homeMap, HOME_SPAWN_X, HOME_SPAWN_Y, HOME_NPC_X, HOME_NPC_Y } from './world/homeMap.js';
-import { alchemistMap, ALCHEMIST_SPAWN_X, ALCHEMIST_SPAWN_Y } from './world/alchemistMap.js';
+import { libraryMap, LIBRARY_SPAWN_X, LIBRARY_SPAWN_Y, LIBRARY_NPC_X, LIBRARY_NPC_Y, libraryBreakablePositions } from './world/libraryMap.js';
+import { homeMap, HOME_SPAWN_X, HOME_SPAWN_Y, HOME_NPC_X, HOME_NPC_Y, homeBreakablePositions } from './world/homeMap.js';
+import { alchemistMap, ALCHEMIST_SPAWN_X, ALCHEMIST_SPAWN_Y, alchemistBreakablePositions } from './world/alchemistMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
 import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton, drawChest } from './rendering/sprites.js';
@@ -28,7 +28,7 @@ import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
 
-export const VERSION = '1.1.3';
+export const VERSION = '1.1.4';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -73,14 +73,17 @@ let shopSkeletonAnimTimer = 0;
 // Library interior state
 let inLibrary = false;
 let libraryNpcs = [];
+let libraryBreakables = [];
 
 // Home interior state
 let inHome = false;
 let homeNpcs = [];
+let homeBreakables = [];
 
 // Alchemist interior state
 let inAlchemist = false;
 let alchemistNpcs = [];
+let alchemistBreakables = [];
 
 // Secret bush state (one-time reward)
 let secretBushCollected = false;
@@ -236,8 +239,11 @@ function startGame() {
     shopSkeletonFreed = false;
     shopSkeletonDefeated = false;
     libraryNpcs = createNPCs([libraryNpcData]);
+    libraryBreakables = createBreakables(libraryBreakablePositions);
     homeNpcs = createNPCs([homeNpcData]);
+    homeBreakables = createBreakables(homeBreakablePositions);
     alchemistNpcs = createNPCs([alchemistNpcData]);
+    alchemistBreakables = createBreakables(alchemistBreakablePositions);
     inLibrary = false;
     inHome = false;
     inAlchemist = false;
@@ -809,10 +815,26 @@ function updateLibraryInterior() {
         if (nearInteract) {
             tryLibraryInteract();
         } else {
-            if (!player.attack()) tryLibraryInteract();
+            if (player.attack()) {
+                const hitbox = player.getAttackHitbox();
+                if (hitbox) {
+                    for (const b of libraryBreakables) {
+                        if (b.active && !b.destroying) {
+                            if (aabbOverlap(hitbox.x, hitbox.y, hitbox.w, hitbox.h,
+                                           b.x + 4, b.y + 4, b.w - 8, b.h - 8)) {
+                                const drop = b.hit();
+                                if (drop) spawnDrop(b.x + TILE_SIZE / 2, b.y + TILE_SIZE / 2, drop);
+                            }
+                        }
+                    }
+                }
+            } else {
+                tryLibraryInteract();
+            }
         }
     }
 
+    for (const b of libraryBreakables) b.update();
     updateArrows(libraryMap);
     if (player.bowReleased) { player.bowReleased = false; spawnArrow(); }
     updateDrops();
@@ -972,10 +994,26 @@ function updateHomeInterior() {
         if (nearInteract) {
             tryHomeInteract();
         } else {
-            if (!player.attack()) tryHomeInteract();
+            if (player.attack()) {
+                const hitbox = player.getAttackHitbox();
+                if (hitbox) {
+                    for (const b of homeBreakables) {
+                        if (b.active && !b.destroying) {
+                            if (aabbOverlap(hitbox.x, hitbox.y, hitbox.w, hitbox.h,
+                                           b.x + 4, b.y + 4, b.w - 8, b.h - 8)) {
+                                const drop = b.hit();
+                                if (drop) spawnDrop(b.x + TILE_SIZE / 2, b.y + TILE_SIZE / 2, drop);
+                            }
+                        }
+                    }
+                }
+            } else {
+                tryHomeInteract();
+            }
         }
     }
 
+    for (const b of homeBreakables) b.update();
     updateArrows(homeMap);
     if (player.bowReleased) { player.bowReleased = false; spawnArrow(); }
     updateDrops();
@@ -1050,10 +1088,26 @@ function updateAlchemistInterior() {
         if (nearInteract) {
             tryAlchemistInteract();
         } else {
-            if (!player.attack()) tryAlchemistInteract();
+            if (player.attack()) {
+                const hitbox = player.getAttackHitbox();
+                if (hitbox) {
+                    for (const b of alchemistBreakables) {
+                        if (b.active && !b.destroying) {
+                            if (aabbOverlap(hitbox.x, hitbox.y, hitbox.w, hitbox.h,
+                                           b.x + 4, b.y + 4, b.w - 8, b.h - 8)) {
+                                const drop = b.hit();
+                                if (drop) spawnDrop(b.x + TILE_SIZE / 2, b.y + TILE_SIZE / 2, drop);
+                            }
+                        }
+                    }
+                }
+            } else {
+                tryAlchemistInteract();
+            }
         }
     }
 
+    for (const b of alchemistBreakables) b.update();
     updateArrows(alchemistMap);
     if (player.bowReleased) { player.bowReleased = false; spawnArrow(); }
     updateDrops();
@@ -1749,7 +1803,7 @@ function performRestore(slot) {
 
     camera.x = 0;
     camera.y = 0;
-    music.play(inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome) ? 'shop' : 'overworld'));
+    music.play(inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome || inAlchemist) ? 'shop' : 'overworld'));
     gameState.change(States.PLAYING);
 }
 
@@ -2244,6 +2298,9 @@ function renderLibraryScene() {
     renderMap(ctx, libraryMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
 
     const entities = [];
+    for (const b of libraryBreakables) {
+        if (b.active) entities.push({ y: b.y + TILE_SIZE, render: () => b.render(ctx) });
+    }
     for (const npc of libraryNpcs) {
         entities.push({ y: npc.y, render: () => npc.render(ctx) });
     }
@@ -2277,6 +2334,9 @@ function renderHomeScene() {
     renderMap(ctx, homeMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
 
     const entities = [];
+    for (const b of homeBreakables) {
+        if (b.active) entities.push({ y: b.y + TILE_SIZE, render: () => b.render(ctx) });
+    }
     for (const npc of homeNpcs) {
         entities.push({ y: npc.y, render: () => npc.render(ctx) });
     }
@@ -2310,6 +2370,9 @@ function renderAlchemistScene() {
     renderMap(ctx, alchemistMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
 
     const entities = [];
+    for (const b of alchemistBreakables) {
+        if (b.active) entities.push({ y: b.y + TILE_SIZE, render: () => b.render(ctx) });
+    }
     for (const npc of alchemistNpcs) {
         entities.push({ y: npc.y, render: () => npc.render(ctx) });
     }

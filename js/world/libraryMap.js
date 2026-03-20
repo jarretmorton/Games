@@ -29,3 +29,8 @@ export const LIBRARY_SPAWN_Y = 4 * 32 + 16;
 // Librarian NPC position (tile coords, facing south toward player)
 export const LIBRARY_NPC_X = 2;
 export const LIBRARY_NPC_Y = 3;
+
+// Interior breakables
+export const libraryBreakablePositions = [
+    { tileX: 5, tileY: 2, type: 'heart_pot' },
+];

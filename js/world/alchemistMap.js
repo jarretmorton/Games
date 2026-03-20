@@ -27,3 +27,8 @@ export const alchemistMap = [
 // Player spawns near the door at bottom centre
 export const ALCHEMIST_SPAWN_X = 3.5 * 32 + 16;
 export const ALCHEMIST_SPAWN_Y = 4 * 32 + 16;
+
+// Interior breakables
+export const alchemistBreakablePositions = [
+    { tileX: 6, tileY: 3, type: 'heart_pot' },
+];

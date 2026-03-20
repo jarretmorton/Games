@@ -837,6 +837,22 @@ export function drawBreakable(ctx, x, y, type) {
             ctx.fillStyle = '#4A7628';
             ctx.fillRect(x + 10, y + 6, 12, 6);
             break;
+        case 'heart_pot':
+            // Same shape as a pot but red with a heart emblem
+            ctx.fillStyle = '#8B3333';
+            ctx.fillRect(x + 8, y + 6, 16, 4);
+            ctx.fillRect(x + 6, y + 10, 20, 14);
+            ctx.fillRect(x + 8, y + 24, 16, 4);
+            ctx.fillStyle = '#CC5555';
+            ctx.fillRect(x + 10, y + 12, 12, 8);
+            // Small heart on the front
+            ctx.fillStyle = '#FF2222';
+            ctx.fillRect(x + 12, y + 14, 3, 2);
+            ctx.fillRect(x + 17, y + 14, 3, 2);
+            ctx.fillRect(x + 11, y + 16, 10, 2);
+            ctx.fillRect(x + 13, y + 18, 6, 2);
+            ctx.fillRect(x + 15, y + 20, 2, 2);
+            break;
         case 'golden_pot':
             ctx.fillStyle = '#8B6914';
             ctx.fillRect(x + 8, y + 6, 16, 4);
