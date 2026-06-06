@@ -27,8 +27,10 @@ import { aabbOverlap } from './engine/collision.js';
 import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
+import { LEVELS, getLevel, levelIdFromFlags } from './world/levels.js';
+import { installDebugHook } from './engine/debugHook.js';
 
-export const VERSION = '1.1.4';
+export const VERSION = '1.2.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -183,9 +185,39 @@ const DEATH_SCREEN_DURATION = 120; // 2 seconds at 60fps
 // Transition effect
 let transition = { active: false, timer: 0, maxTime: 30, callback: null };
 
+// ── Level-registry bridge (Phase 0) ──────────────────────────────────────────
+// The engine still tracks location with the boolean flags below; these derive
+// the canonical currentLevelId + flag bag that the registry, debug hook, and
+// save format share. See js/world/levels.js and docs/LEVEL_SPEC.md §4.
+function currentLevelId() {
+    return levelIdFromFlags({ inDungeon, inShop, inLibrary, inHome, inAlchemist });
+}
+
+function currentFlags() {
+    return {
+        inDungeon, inShop, inLibrary, inHome, inAlchemist,
+        puzzleSolved: puzzle.solved,
+        dungeonCleared,
+        lockedRoomOpen,
+        enderPearlPickedUp,
+        shopSkeletonFreed,
+        shopSkeletonDefeated,
+        secretBushCollected,
+    };
+}
+
 function init() {
     ctx = initRenderer();
     initCanvasInput();
+    installDebugHook({
+        version: VERSION,
+        getState: () => ({
+            levelId: currentLevelId(),
+            player: { x: player.x, y: player.y, hp: player.health },
+            inventory: inventory.items.map(i => i.id),
+            flags: currentFlags(),
+        }),
+    });
     requestAnimationFrame(gameLoop);
 }
 
@@ -627,25 +659,30 @@ function updateDungeon() {
 }
 
 function enterDungeon() {
+    // Sourced from the level registry (js/world/levels.js) — the single source
+    // of truth for spawn / boss / music. Values match the legacy constants.
+    const mine = getLevel('mine');
+    const [spawnX, spawnY] = mine.spawn;
     // Save position at dungeon entrance
-    savePoint = { x: DUNGEON_SPAWN_X, y: DUNGEON_SPAWN_Y, inDungeon: true, inShop: false };
+    savePoint = { x: spawnX, y: spawnY, inDungeon: true, inShop: false };
     transition.active = true;
     transition.timer = 0;
     transition.maxTime = 20;
     transition.callback = () => {
         inDungeon = true;
         inShop = false;
-        player.x = DUNGEON_SPAWN_X;
-        player.y = DUNGEON_SPAWN_Y;
+        player.x = spawnX;
+        player.y = spawnY;
         camera.x = 0;
         camera.y = 0;
         if (!dungeonCleared) {
-            enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
+            const [bx, by] = mine.boss.spawn;
+            enemies = [new Enemy(bx, by, mine.boss.type)];
         } else {
             enemies = [];
         }
         enemyArrows = [];
-        music.play('dungeon');
+        music.play(mine.music);
     };
 }
 
@@ -1696,7 +1733,10 @@ function performSave(slot) {
         secondaryItemId: player.secondaryItem?.id || null,
         hasBlueberry: player.hasBlueberry,
         hasDiamond: player.hasDiamond,
-        // World
+        // World — canonical level id + flag bag (Phase 0); the named booleans
+        // below remain the authoritative restore fields for backward compat.
+        currentLevelId: currentLevelId(),
+        flags: currentFlags(),
         inDungeon,
         inShop,
         inLibrary,
