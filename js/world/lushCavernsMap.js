@@ -6,14 +6,17 @@
 // otherwise-impassable chasm/water by facing a HOOK_ANCHOR and pressing action
 // while holding `tripwire_hook` — they are yanked across to the far side.
 //
-// FLOW (bottom → top):
-//   1. Spawn (bottom-center) in the entry grotto.
-//   2. Cave-spider SWARM arena (the mini-boss) — clearing it is the gate to the
-//      reward alcove.
+// FLOW (you DROP IN from the town well, mid-map, then climb):
+//   1. Well drop: you fall in at the arena center (LUSH_WELL_DROP).
+//   2. Cave-spider SWARM arena (the mini-boss) — clearing it frees movement.
 //   3. Reward alcove: the Tripwire Hook chest (north of the arena).
 //   4. The Great Chasm: a band of CHASM + CAVE_WATER with a HOOK_ANCHOR on the
 //      far (north) rim — impossible to cross on foot, trivial with the hook.
-//   5. LUSH_EXIT (top) → deep_dark.
+//   5. North shelf: shove the EXIT BOULDER (far left) to punch a permanent hole
+//      in the mine's right wall and drop into the mine. A HIDDEN stash sits on
+//      the far-right of the shelf. (The mine hole is also the return entrance:
+//      arriving from the mine lands you here, at LUSH_MINE_ENTRY.)
+//   NOTE: the forward link to deep_dark (L3) is deferred until that level exists.
 // ─────────────────────────────────────────────────────────────────────────────
 import { T } from '../data/tileTypes.js';
 
@@ -26,17 +29,19 @@ const D  = T.DRIPLEAF;
 const V  = T.VINE;
 const H  = T.HOOK_ANCHOR;
 const Y  = T.CLAY;
-const E  = T.LUSH_EXIT;
+const R  = T.LUSH_ROCK;     // the exit boulder (far-left, north of the chasm)
+const K  = T.LUSH_SECRET;   // hidden glow-berry stash (north-east)
 const TO = T.TORCH;
 
 // 24 columns x 24 rows.
 export const lushCavernsMap = [
-    // row 0 — far north wall, the exit onward to the Deep Dark
-    [W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  E,  E,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W],
-    // row 1 — exit antechamber
+    // row 0 — solid far-north wall (no door here — the exit is the boulder below)
+    [W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W,  W],
+    // row 1 — north shelf antechamber
     [W,  G,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  G,  W,  W],
-    // row 2
-    [W,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  W,  W],
+    // row 2 — north shelf (reachable ONLY via the grapple): EXIT boulder on the
+    //          far left (col 1), a HIDDEN glow-berry stash on the far right (col 21)
+    [W,  R,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  K,  W,  W],
     // row 3 — far rim of the Great Chasm, with the HOOK ANCHOR the player aims at
     [W,  F,  F,  F,  F,  F,  F,  F,  F,  F,  H,  H,  F,  F,  F,  F,  F,  F,  F,  F,  F,  F,  W,  W],
     // row 4 — THE GREAT CHASM (impassable on foot)
@@ -105,6 +110,21 @@ export const LUSH_REWARD_Y = 7 * 32 + 16;
 export const LUSH_ANCHOR_ROW = 3;
 export const LUSH_ANCHOR_COLS = [10, 11];
 
-// Forward exit (LUSH_EXIT tiles) → deep_dark, at the top of the map.
-export const LUSH_EXIT_ROW = 0;
-export const LUSH_EXIT_COLS = [10, 11];
+// Well drop: the player falls in from the town well into the grotto just south
+// of the swarm arena — a safe landing mid-map, then they climb up into the
+// spiders (rather than dropping right on top of one). Pixel center.
+export const LUSH_WELL_DROP_X = 11 * 32 + 16;
+export const LUSH_WELL_DROP_Y = 16 * 32 + 16;
+
+// The EXIT boulder on the north shelf (far left) — shove it to open the mine.
+export const LUSH_ROCK_ROW = 2;
+export const LUSH_ROCK_COL = 1;
+
+// Return entrance: arriving from the mine hole lands the player on the north
+// shelf, just east of the (now-removed) boulder.
+export const LUSH_MINE_ENTRY_X = 3 * 32 + 16;
+export const LUSH_MINE_ENTRY_Y = 2 * 32 + 16;
+
+// Hidden glow-berry stash on the far-right of the north shelf (the L2 secret).
+export const LUSH_SECRET_ROW = 2;
+export const LUSH_SECRET_COL = 21;

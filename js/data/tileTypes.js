@@ -61,7 +61,10 @@ export const T = {
     VINE: 54,             // hanging vines (walkable, decorative)
     HOOK_ANCHOR: 55,      // grapple target — solid, the hook latches onto it
     CLAY: 56,             // clay block floor accent (walkable)
-    LUSH_EXIT: 57,        // forward exit to deep_dark (interact: 'lush_exit')
+    LUSH_EXIT: 57,        // (reserved) forward exit to deep_dark — deferred until L3
+    LUSH_ROCK: 58,        // pushable boulder — the L2 exit; shove it to open the mine
+    LUSH_SECRET: 59,      // hidden glow-berry stash (looks like wall; +emeralds once)
+    MINE_HOLE: 60,        // passage punched in the mine's right wall (L1<->L2 link)
 };
 
 export const tileProps = {
@@ -80,7 +83,7 @@ export const tileProps = {
     [T.SAND]:             { solid: false, color: '#D4B896', color2: '#C4A886' },
     [T.FLOWER_RED]:       { solid: false, color: '#5B8731', color2: '#4A7628', decor: '#CC3333' },
     [T.FLOWER_YELLOW]:    { solid: false, color: '#5B8731', color2: '#4A7628', decor: '#CCCC33' },
-    [T.WELL]:             { solid: true,  color: '#6B6B6B', color2: '#555555' },
+    [T.WELL]:             { solid: true,  color: '#6B6B6B', color2: '#555555', interact: 'well' },
     [T.FOUNTAIN]:         { solid: true,  color: '#3366CC', color2: '#2255BB', animated: true },
     [T.ROOF_WOOD]:        { solid: false, color: '#8B4513', color2: '#7A3A0E', overhead: true },
     [T.ROOF_STONE]:       { solid: false, color: '#5A5A5A', color2: '#4A4A4A', overhead: true },
@@ -125,4 +128,7 @@ export const tileProps = {
     [T.HOOK_ANCHOR]:      { solid: true,  color: '#5A4630', color2: '#473522' },
     [T.CLAY]:             { solid: false, color: '#9A7A5A', color2: '#856848' },
     [T.LUSH_EXIT]:        { solid: false, color: '#1A2E1A', color2: '#0D1A0D', interact: 'lush_exit' },
+    [T.LUSH_ROCK]:        { solid: true,  color: '#5A5246', color2: '#46402F', interact: 'lush_rock' },
+    [T.LUSH_SECRET]:      { solid: true,  color: '#2D4A1E', color2: '#1E3514', interact: 'lush_secret' },
+    [T.MINE_HOLE]:        { solid: false, color: '#0E140E', color2: '#070A07' },
 };

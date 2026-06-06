@@ -37,6 +37,7 @@ A level may also need entries in the **shared registries** (§6 / WORLD_BIBLE §
 | **Exit** | a tile/edge whose `gatingItemOut` item has been collected (e.g. walk-off-edge, or a portal/door tile) | Crossing it advances to the next level. |
 | **Boss arena** | an open region with the boss's spawn exported (cf. `ZOMBIE_SPAWN_X/Y`) | Boss defeat sets the level's `cleared` flag. |
 | **Reward** | the granted item's pickup location exported (cf. `ENDER_PEARL_X/Y`) | Collecting it sets the item flag and (usually) is gated behind the boss/puzzle. |
+| **Secret (≥1)** | at least one hidden, off-critical-path reward — a disguised/interact tile or hidden alcove granting **emeralds or an item** (never a heart) | Discovering it sets a one-time flag and grants the reward. Required (criterion G10). |
 
 **Dimensions.** No hard engine limit (the camera follows and clamps to `map[0].length × map.length`). Existing reference sizes: town **40×30**, dungeon **16×18**, shop **8×7**. New dungeons should land in roughly **16×18 → 32×32**; bigger is fine if traversal justifies it. Rows must all be equal length.
 
@@ -148,6 +149,7 @@ Every criterion below is a runtime assertion against `state` after a scripted `i
 - **G7 — Ender Pearl preserved.** From the moment it's picked up, `inventory.includes('ender_pearl')` stays `true` for the rest of the game (re-checked after every level merge).
 - **G8 — Tile-ID hygiene.** Every tile ID present in the level's `map` has a `tileProps` entry (no invisible-wall tiles). *(Static check, not a playthrough.)*
 - **G9 — Save/restore round-trips.** Save mid-level, restore: `levelId`, `inventory`, player position, and the level's `clearedFlag` all match. (The refactor's generalized per-level flag bag must cover the level's flags.)
+- **G10 — At least one secret.** The level contains a hidden, off-critical-path reward granting **emeralds or an item** (never a heart). Finding it grants the reward and sets a one-time flag that survives save/restore. *(Assert the emerald/inventory delta + the flag.)*
 
 ### 5.1 L1 — Village & Sealed Mine *(existing — encode as regression, do not change the level)*
 

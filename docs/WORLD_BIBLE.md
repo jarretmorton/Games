@@ -108,6 +108,7 @@ Authors own layout, room geometry, NPC dialogue, hidden secrets, sub-puzzles, en
 - **Every new tile ID needs a `tileProps` entry.** A missing entry renders *nothing* **and** is treated as **solid** (`isSolidTile` returns `true` when `tileProps[id]` is undefined) — i.e. an invisible wall. This is the #1 authoring footgun. See LEVEL_SPEC §6.
 - **Stay in the namespace.** New tile IDs start at the next free integer (currently **48**) and must not collide with another level's IDs. The registry of taken IDs is in LEVEL_SPEC §6.
 - **Honor the save model.** Anything that must persist (boss defeated, item taken, gate opened) needs a flag the save system serializes — today those are hand-named booleans (see §7.3).
+- **Every level hides at least one secret.** A reward for exploring off the critical path — an optional-path stash of **emeralds or an item** (never a heart container). L1 set the precedent (the forest secret bush → 20 emeralds; L2's hidden glow-berry stash → 25); every new level carries the tradition. This is a hard requirement, not flavor (see LEVEL_SPEC §2 and criterion G10).
 - **On ambiguity, stop and ask.** Per the plan's escalation rule — a spec gap or a cross-level conflict is a gate question, not a guess.
 
 ---

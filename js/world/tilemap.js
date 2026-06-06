@@ -195,6 +195,43 @@ function drawTile(ctx, tileId, props, x, y) {
         }
     }
 
+    if (tileId === 58) { // T.LUSH_ROCK — a shove-able boulder (the L2 exit)
+        ctx.fillStyle = '#46402F';
+        ctx.fillRect(x + 3, y + 6, s - 6, s - 9);
+        ctx.fillStyle = '#5A5246';
+        ctx.fillRect(x + 6, y + 4, s - 14, s - 10);
+        ctx.fillStyle = '#6B6353';
+        ctx.fillRect(x + 9, y + 7, 9, 7);
+        // cracks + shadow
+        ctx.fillStyle = '#33301F';
+        ctx.fillRect(x + 14, y + 10, 2, 10);
+        ctx.fillRect(x + 10, y + 16, 9, 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(x + 4, y + s - 5, s - 8, 3);
+    }
+
+    if (tileId === 59) { // T.LUSH_SECRET — disguised as mossy wall; faint sparkle
+        // base fill/speckle already drew the moss-wall look; just hint a glimmer
+        if (animFrame === 1) {
+            ctx.fillStyle = 'rgba(232, 162, 61, 0.18)';
+            ctx.fillRect(x + 13, y + 13, 5, 5);
+            ctx.fillStyle = 'rgba(120, 220, 120, 0.15)';
+            ctx.fillRect(x + 8, y + 20, 3, 3);
+        }
+    }
+
+    if (tileId === 60) { // T.MINE_HOLE — passage punched through the mine wall
+        ctx.fillStyle = '#070A07';
+        ctx.fillRect(x + 3, y + 3, s - 6, s - 6);
+        // jagged broken-rock rim
+        ctx.fillStyle = '#3A3A3A';
+        ctx.fillRect(x + 1, y + 1, s - 2, 3);
+        ctx.fillRect(x + 1, y + s - 4, s - 2, 3);
+        ctx.fillStyle = '#2A4A1E'; // moss creeping in from the lush side
+        ctx.fillRect(x + s - 4, y + 8, 3, 6);
+        ctx.fillRect(x + s - 6, y + 16, 3, 4);
+    }
+
     // Special tile rendering
     if (props.interact === 'shop') {
         // Door with a little sign

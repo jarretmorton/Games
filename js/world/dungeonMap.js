@@ -47,3 +47,11 @@ export const LOCKED_DOOR_ROW = 5;
 export const LOCKED_DOOR_COLS = [7, 8];
 export const ENDER_PEARL_X = 8 * 32;
 export const ENDER_PEARL_Y = 2 * 32 + 16;
+
+// The permanent passage punched into the mine's right wall (middle of the main
+// room) when the L2 boulder is shoved aside — the lateral L1<->L2 link. The
+// wall tile here is swapped to T.MINE_HOLE at runtime once lushRockPushed.
+export const MINE_HOLE_ROW = 11;
+export const MINE_HOLE_COL = 15;
+export const MINE_HOLE_X = 14 * 32 + 16; // where the player stands after emerging
+export const MINE_HOLE_Y = 11 * 32 + 16;
