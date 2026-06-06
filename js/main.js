@@ -4,16 +4,17 @@ import { gameState, States } from './state/gameState.js';
 import { camera } from './engine/camera.js';
 import { renderMap, updateTileAnimations } from './world/tilemap.js';
 import { townMap, SPAWN_X, SPAWN_Y, breakablePositions } from './world/townMap.js';
-import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, LOCKED_DOOR_ROW, LOCKED_DOOR_COLS, ENDER_PEARL_X, ENDER_PEARL_Y } from './world/dungeonMap.js';
+import { dungeonMap, DUNGEON_SPAWN_X, DUNGEON_SPAWN_Y, ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, LOCKED_DOOR_ROW, LOCKED_DOOR_COLS, ENDER_PEARL_X, ENDER_PEARL_Y, MINE_HOLE_ROW, MINE_HOLE_COL, MINE_HOLE_X, MINE_HOLE_Y } from './world/dungeonMap.js';
 import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELETON_X, SKELETON_Y, CRAFTING_TABLE_COL, CRAFTING_TABLE_ROW } from './world/shopMap.js';
 import { libraryMap, LIBRARY_SPAWN_X, LIBRARY_SPAWN_Y, LIBRARY_NPC_X, LIBRARY_NPC_Y, libraryBreakablePositions } from './world/libraryMap.js';
 import { homeMap, HOME_SPAWN_X, HOME_SPAWN_Y, HOME_NPC_X, HOME_NPC_Y, homeBreakablePositions } from './world/homeMap.js';
 import { alchemistMap, ALCHEMIST_SPAWN_X, ALCHEMIST_SPAWN_Y, alchemistBreakablePositions } from './world/alchemistMap.js';
+import { lushCavernsMap, LUSH_SWARM_SPAWNS, LUSH_REWARD_X, LUSH_REWARD_Y, LUSH_ANCHOR_ROW, LUSH_ANCHOR_COLS, LUSH_WELL_DROP_X, LUSH_WELL_DROP_Y, LUSH_MINE_ENTRY_X, LUSH_MINE_ENTRY_Y, LUSH_ROCK_ROW, LUSH_ROCK_COL, LUSH_SECRET_ROW, LUSH_SECRET_COL } from './world/lushCavernsMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
 import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton, drawChest } from './rendering/sprites.js';
 import { createNPCs } from './entities/npc.js';
-import { npcData, shopkeeperData, libraryNpcData, homeNpcData, alchemistNpcData } from './data/npcs.js';
+import { npcData, shopkeeperData, libraryNpcData, homeNpcData, alchemistNpcData, wellKeeperData } from './data/npcs.js';
 import { dialogue } from './rendering/dialogue.js';
 import { createBreakables } from './entities/breakable.js';
 import { renderHUD } from './rendering/hud.js';
@@ -28,7 +29,7 @@ import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
 import { LEVELS, getLevel, levelIdFromFlags } from './world/levels.js';
-import { installDebugHook } from './engine/debugHook.js';
+import { installDebugHook, debugEnabled } from './engine/debugHook.js';
 
 export const VERSION = '1.3.0';
 
@@ -89,6 +90,17 @@ let alchemistBreakables = [];
 
 // Secret bush state (one-time reward)
 let secretBushCollected = false;
+
+// ── L2 Lush Caverns interior state ──
+let inLushCaverns = false;
+let lushEnemies = [];                 // the cave-spider swarm
+let lushCavernsCleared = false;       // boss clearedFlag (whole swarm defeated)
+let lushHookAcquired = false;         // Tripwire Hook reward picked up
+let lushRockPushed = false;           // exit boulder shoved → permanent mine hole
+let lushSecretFound = false;          // hidden glow-berry stash collected (once)
+let lushChest = null;                 // reward chest (spawns after the swarm dies)
+let grappleAnim = null;               // active grapple tween (see updateLushCaverns)
+let wellKeeperAdded = false;          // the post-pearl villager has been placed
 
 // Save point for respawning after death
 let savePoint = { x: SPAWN_X, y: SPAWN_Y, inDungeon: false, inShop: false };
@@ -190,12 +202,12 @@ let transition = { active: false, timer: 0, maxTime: 30, callback: null };
 // the canonical currentLevelId + flag bag that the registry, debug hook, and
 // save format share. See js/world/levels.js and docs/LEVEL_SPEC.md §4.
 function currentLevelId() {
-    return levelIdFromFlags({ inDungeon, inShop, inLibrary, inHome, inAlchemist });
+    return levelIdFromFlags({ inDungeon, inShop, inLibrary, inHome, inAlchemist, inLushCaverns });
 }
 
 function currentFlags() {
     return {
-        inDungeon, inShop, inLibrary, inHome, inAlchemist,
+        inDungeon, inShop, inLibrary, inHome, inAlchemist, inLushCaverns,
         puzzleSolved: puzzle.solved,
         dungeonCleared,
         lockedRoomOpen,
@@ -203,6 +215,10 @@ function currentFlags() {
         shopSkeletonFreed,
         shopSkeletonDefeated,
         secretBushCollected,
+        lushCavernsCleared,
+        lushHookAcquired,
+        lushRockPushed,
+        lushSecretFound,
     };
 }
 
@@ -213,6 +229,7 @@ function init() {
         version: VERSION,
         getState: () => ({
             levelId: currentLevelId(),
+            gameState: gameState.current,
             player: { x: player.x, y: player.y, hp: player.health },
             inventory: inventory.items.map(i => i.id),
             flags: currentFlags(),
@@ -279,6 +296,22 @@ function startGame() {
     inLibrary = false;
     inHome = false;
     inAlchemist = false;
+
+    // L2 Lush Caverns reset
+    inLushCaverns = false;
+    lushEnemies = [];
+    lushCavernsCleared = false;
+    lushHookAcquired = false;
+    lushRockPushed = false;
+    lushSecretFound = false;
+    lushChest = null;
+    grappleAnim = null;
+    wellKeeperAdded = false;
+    // Reset the L2 exit boulder + mine-hole tiles in case a previous game opened them
+    lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.LUSH_ROCK;
+    lushCavernsMap[LUSH_SECRET_ROW][LUSH_SECRET_COL] = T.LUSH_SECRET;
+    dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.DUNGEON_WALL;
+    tileProps[T.WELL].solid = true; // re-seal the well until the Ender Pearl is found
 
     // Hook up weapon purchase callback to free the skeleton
     shop.onWeaponPurchased = () => {
@@ -491,6 +524,8 @@ function updatePlaying() {
                 enterHome();
             } else if (interact === 'alchemist' && !transition.active) {
                 enterAlchemist();
+            } else if (interact === 'well' && enderPearlPickedUp && !transition.active) {
+                enterLushCaverns(); // step onto the broken well → fall into L2 (no button)
             }
         }
     }
@@ -513,6 +548,13 @@ function updatePlaying() {
     if (input.start) {
         saveMenuOption = 0;
         gameState.change(States.SAVE_MENU);
+    }
+
+    // ── TEMPORARY DEV ENTRANCE to L2 (pilot only; debug builds only) ──
+    // Press L in the village under ?debug=1 to warp straight into the Lush
+    // Caverns for testing. NOT the canonical L1→L2 connection (orchestrator call).
+    if (debugEnabled() && input.isPressed('KeyL') && !transition.active) {
+        devWarpToLushCaverns();
     }
 }
 
@@ -642,6 +684,24 @@ function updateDungeon() {
         exitDungeon();
     }
 
+    // L1<->L2 link: once the boulder is shoved, the hole in the mine's right wall
+    // is a permanent two-way passage into the Lush Caverns' north shelf.
+    if (lushRockPushed && !transition.active) {
+        const pcol = Math.floor(player.x / TILE_SIZE);
+        const prow = Math.floor(player.y / TILE_SIZE);
+        if (dungeonMap[prow]?.[pcol] === T.MINE_HOLE) {
+            enterLushCaverns([LUSH_MINE_ENTRY_X, LUSH_MINE_ENTRY_Y]);
+        }
+    }
+
+    // ── TEMPORARY DEV ENTRANCE to L2 (pilot only; debug builds only) ──
+    // Press L in the mine under ?debug=1 to warp into the Lush Caverns. This is
+    // NOT the canonical L1→L2 connection — see the orchestrator report. Remove
+    // once the real transition is wired.
+    if (debugEnabled() && input.isPressed('KeyL') && !transition.active) {
+        devWarpToLushCaverns();
+    }
+
     if (input.inventory) {
         invSelectedIndex = 0;
         gameState.change(States.INVENTORY);
@@ -660,17 +720,18 @@ function updateDungeon() {
 // writer of the legacy location flags, kept in sync so every existing read of
 // inDungeon/inShop/... (save, restore, respawn, music, HUD) keeps working.
 function setLevel(id) {
-    inDungeon   = (id === 'mine');
-    inShop      = (id === 'shop');
-    inLibrary   = (id === 'library');
-    inHome      = (id === 'home');
-    inAlchemist = (id === 'alchemist');
+    inDungeon     = (id === 'mine');
+    inShop        = (id === 'shop');
+    inLibrary     = (id === 'library');
+    inHome        = (id === 'home');
+    inAlchemist   = (id === 'alchemist');
+    inLushCaverns = (id === 'lush_caverns');
     // 'village' => all flags false (the town hub)
 }
 
-function enterLevel(id, { savePoint: sp = null, onEnter = null } = {}) {
+function enterLevel(id, { savePoint: sp = null, onEnter = null, spawn = null } = {}) {
     const lvl = getLevel(id);
-    const [spawnX, spawnY] = lvl.spawn;
+    const [spawnX, spawnY] = spawn || lvl.spawn;
     if (sp) savePoint = sp;
     transition.active = true;
     transition.timer = 0;
@@ -713,16 +774,293 @@ function enterDungeon() {
                 enemies = [];
             }
             enemyArrows = [];
+            // Keep the L2 passage visible if the boulder was already shoved.
+            if (lushRockPushed) dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.MINE_HOLE;
         },
     });
 }
 
+// Place the Well Keeper villager by the mine exit once the Ender Pearl is found.
+// Idempotent — safe to call on every dungeon exit and on restore.
+function ensureWellKeeper() {
+    if (!enderPearlPickedUp) return;
+    // The broken well becomes walkable now — step onto it to fall into L2.
+    tileProps[T.WELL].solid = false;
+    if (wellKeeperAdded) return;
+    npcs.push(...createNPCs([wellKeeperData]));
+    wellKeeperAdded = true;
+}
+
 function exitDungeon() {
+    ensureWellKeeper();
     returnToVillage(5 * TILE_SIZE + TILE_SIZE / 2, 25 * TILE_SIZE + TILE_SIZE / 2);
 }
 
 function spawnDungeonChest(x, y) {
     dungeonChest = { x, y, opened: false };
+}
+
+// ── L2: THE LUSH CAVERNS ──────────────────────────────────────────────────────
+function enterLushCaverns(spawnOverride = null) {
+    const [sx, sy] = spawnOverride || getLevel('lush_caverns').spawn;
+    enterLevel('lush_caverns', {
+        spawn: [sx, sy],
+        savePoint: { x: sx, y: sy, inDungeon: false, inShop: false, inLushCaverns: true },
+        onEnter: (lvl) => {
+            grappleAnim = null;
+            // Keep the boulder-doorway + mine-hole open if it was already shoved.
+            if (lushRockPushed) {
+                lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MINE_HOLE;
+                dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.MINE_HOLE;
+            }
+            if (!lushCavernsCleared) {
+                // Spawn the cave-spider swarm across the arena.
+                lushEnemies = lvl.boss.spawn.map(([bx, by]) => new Enemy(bx, by, lvl.boss.type));
+            } else {
+                lushEnemies = [];
+            }
+            // Re-spawn the reward chest if the swarm was already cleared but the
+            // hook not yet taken (so a returning player can still claim it).
+            if (lushCavernsCleared && !lushHookAcquired) {
+                lushChest = { x: LUSH_REWARD_X, y: LUSH_REWARD_Y, opened: false };
+            } else {
+                lushChest = null;
+            }
+        },
+    });
+}
+
+// TEMPORARY (pilot): warp into L2 for testing. Equips a wooden sword if the
+// player is unarmed so the swarm is beatable in a self-contained test. Debug
+// builds only; the real L1→L2 connection is an orchestrator/human decision.
+function devWarpToLushCaverns() {
+    if (!inventory.has('wooden_sword') && !player.equippedItem) {
+        inventory.add(itemDefs.wooden_sword);
+    }
+    enterLushCaverns();
+}
+
+// The L2 exit: shove the boulder on the north shelf. This permanently punches a
+// hole in the mine's right-middle wall (the lateral L1<->L2 link) and drops the
+// player through into the old mine.
+//
+// NOTE (flagged for orchestrator): the FORWARD link to deep_dark (L3) is deferred
+// until that level exists. The registry still records nextLevel: 'deep_dark' and
+// gatingItemOut: 'tripwire_hook' for the chain; reaching this boulder already
+// REQUIRES the hook (it sits across the Great Chasm), so the gate is preserved.
+function pushLushRock() {
+    lushRockPushed = true;
+    // The boulder's spot becomes a PERMANENT walk-through doorway (MINE_HOLE), so
+    // the L2<->mine link is two-way forever: step on it to travel to the mine.
+    lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MINE_HOLE;
+    dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.MINE_HOLE;
+    camera.shake(3, 20);
+    enterDungeonViaHole(['You shove the mossy boulder aside!', 'It crashes through into the old mine — a passage opens!']);
+}
+
+// Travel into the mine at the hole. By this point the mine skeleton is already
+// defeated (you needed the Ender Pearl to reach here); the guard mirrors
+// enterDungeon just in case. `lines` shows a one-off dialogue (the first shove);
+// walking back through the doorway later is silent.
+function enterDungeonViaHole(lines = null) {
+    enterLevel('mine', {
+        spawn: [MINE_HOLE_X, MINE_HOLE_Y],
+        savePoint: { x: MINE_HOLE_X, y: MINE_HOLE_Y, inDungeon: true, inShop: false },
+        onEnter: () => {
+            dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.MINE_HOLE;
+            enemies = dungeonCleared ? [] : [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
+            enemyArrows = [];
+            if (lines) { dialogue.start('', lines); gameState.change(States.DIALOGUE); }
+        },
+    });
+}
+
+// The grapple: when the player faces a HOOK_ANCHOR within reach and presses
+// action while holding the Tripwire Hook, they are yanked in a straight line up
+// to (and one tile past) the anchor — landing on the first walkable tile behind
+// it, crossing the otherwise-solid chasm/water in between.
+const GRAPPLE_RANGE_TILES = 7;
+
+function tryGrapple() {
+    if (grappleAnim) return false;
+    if (!inventory.has('tripwire_hook')) return false;
+
+    const col = Math.floor(player.x / TILE_SIZE);
+    const row = Math.floor(player.y / TILE_SIZE);
+    let dc = 0, dr = 0;
+    if (player.facing === 'up') dr = -1;
+    else if (player.facing === 'down') dr = 1;
+    else if (player.facing === 'left') dc = -1;
+    else if (player.facing === 'right') dc = 1;
+    else return false;
+
+    // Scan outward from the player in the facing direction for a HOOK_ANCHOR.
+    for (let step = 1; step <= GRAPPLE_RANGE_TILES; step++) {
+        const c = col + dc * step;
+        const r = row + dr * step;
+        if (r < 0 || r >= lushCavernsMap.length || c < 0 || c >= lushCavernsMap[0].length) break;
+        const tile = lushCavernsMap[r][c];
+        if (tile === T.HOOK_ANCHOR) {
+            // Land on the first WALKABLE tile past the anchor (continuing in the
+            // facing direction). Scan a couple of tiles in case the anchor sits
+            // against its own rim.
+            for (let past = 1; past <= 3; past++) {
+                const landC = c + dc * past;
+                const landR = r + dr * past;
+                const landTile = lushCavernsMap[landR]?.[landC];
+                if (landTile === undefined) break;
+                if (!tileProps[landTile]?.solid) {
+                    grappleAnim = {
+                        fromX: player.x, fromY: player.y,
+                        toX: landC * TILE_SIZE + TILE_SIZE / 2,
+                        toY: landR * TILE_SIZE + TILE_SIZE / 2,
+                        t: 0, dur: 12,
+                    };
+                    camera.shake(2, 10);
+                    return true;
+                }
+            }
+            return false;
+        }
+        // A solid non-anchor tile (wall) blocks the line of the hook.
+        if (tileProps[tile]?.solid && tile !== T.CHASM && tile !== T.CAVE_WATER) break;
+    }
+    return false;
+}
+
+function updateLushCaverns() {
+    updateTileAnimations();
+
+    // Grapple tween in progress: slide the player, ignore other input.
+    if (grappleAnim) {
+        grappleAnim.t++;
+        const p = Math.min(1, grappleAnim.t / grappleAnim.dur);
+        player.x = grappleAnim.fromX + (grappleAnim.toX - grappleAnim.fromX) * p;
+        player.y = grappleAnim.fromY + (grappleAnim.toY - grappleAnim.fromY) * p;
+        camera.follow(player.x, player.y, lushCavernsMap[0].length, lushCavernsMap.length);
+        camera.update();
+        if (p >= 1) grappleAnim = null;
+        return;
+    }
+
+    const solidEntities = [];
+    player.update(lushCavernsMap, solidEntities);
+
+    // Swarm update + combat
+    for (const enemy of lushEnemies) {
+        if (!enemy.active) continue;
+        enemy.update(player.x, player.y, lushCavernsMap);
+        if (enemy.canDamagePlayer(player.x, player.y)) {
+            const blocked = player.takeDamage(enemy.damage);
+            if (blocked) {
+                applyKnockback(enemy, player.x, player.y, 8, 10);
+                enemy.hurtTimer = 10;
+                enemy.state = 'hurt';
+                camera.shake(2, 8);
+            }
+        }
+    }
+
+    if (checkPlayerDeath()) return;
+
+    // Shield block
+    if (input.secondary && !player.blocking) {
+        player.startBlock();
+    }
+
+    // Boulder exit / hidden stash — proximity interactions (like the chest), so
+    // they register reliably even pressed against the level's edge walls. These
+    // take priority over attacking, so you don't just swing your sword at them.
+    if (input.action) {
+        // Adjacent (king-move) to the target tile — robust against edge walls.
+        const pcol = Math.floor(player.x / TILE_SIZE);
+        const prow = Math.floor(player.y / TILE_SIZE);
+        const near = (col, row) => Math.abs(pcol - col) <= 1 && Math.abs(prow - row) <= 1;
+        if (lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] === T.LUSH_ROCK && near(LUSH_ROCK_COL, LUSH_ROCK_ROW)) {
+            if (inventory.has('tripwire_hook')) {
+                pushLushRock(); // → opens the mine hole, drops you into the mine
+            } else {
+                dialogue.start('', ['A heavy mossy boulder blocks the way.', 'You shove, but it will not budge by hand...']);
+                gameState.change(States.DIALOGUE);
+            }
+            return;
+        }
+        if (!lushSecretFound && lushCavernsMap[LUSH_SECRET_ROW][LUSH_SECRET_COL] === T.LUSH_SECRET && near(LUSH_SECRET_COL, LUSH_SECRET_ROW)) {
+            lushSecretFound = true;
+            player.emeralds += 25;
+            lushCavernsMap[LUSH_SECRET_ROW][LUSH_SECRET_COL] = T.MOSS_FLOOR;
+            dialogue.start('', ['Hidden behind the moss — a glow-berry stash!', 'You pocket 25 emeralds!', '(Nice exploring!)']);
+            gameState.change(States.DIALOGUE);
+            return;
+        }
+    }
+
+    // Reward chest interaction (grants the Tripwire Hook)
+    if (input.action && lushChest && !lushChest.opened) {
+        const dist = Math.abs(player.x - lushChest.x) + Math.abs(player.y - lushChest.y);
+        if (dist < 40) {
+            lushChest.opened = true;
+            lushHookAcquired = true;
+            inventory.add(itemDefs.tripwire_hook);
+            dialogue.start('', ['You found the Tripwire Hook!', 'Face a hook anchor across a gap and press A', 'to grapple across.']);
+            gameState.change(States.DIALOGUE);
+        }
+    }
+
+    // Grapple: action while facing a HOOK_ANCHOR (only when not opening a chest)
+    const nearChest = lushChest && !lushChest.opened &&
+        (Math.abs(player.x - lushChest.x) + Math.abs(player.y - lushChest.y)) < 28;
+    if (input.action && !nearChest) {
+        tryGrapple();
+    }
+
+    // Player attacks the swarm
+    if (input.action && player.equippedItem && player.equippedItem.type === 'weapon') {
+        if (player.attack()) {
+            const hitbox = player.getAttackHitbox();
+            if (hitbox) {
+                const hits = checkAttackHits(hitbox, lushEnemies);
+                for (const enemy of hits) {
+                    enemy.takeDamage(player.equippedItem.damage, player.x, player.y);
+                    if (enemy.hp <= 0) maybeDropHeart(enemy.x, enemy.y);
+                }
+            }
+        }
+    }
+
+    // Swarm cleared? (all spiders defeated) → spawn the reward chest once.
+    if (!lushCavernsCleared && lushEnemies.length > 0 && lushEnemies.every(e => !e.active)) {
+        lushCavernsCleared = true;
+        lushChest = { x: LUSH_REWARD_X, y: LUSH_REWARD_Y, opened: false };
+        dialogue.start('', ['The cave spiders are defeated!', 'A chest rests in the alcove to the north...']);
+        gameState.change(States.DIALOGUE);
+    }
+
+    updateArrows(lushCavernsMap);
+    if (player.bowReleased) { player.bowReleased = false; spawnArrow(); }
+    updateDrops();
+
+    camera.follow(player.x, player.y, lushCavernsMap[0].length, lushCavernsMap.length);
+    camera.update();
+
+    // Permanent doorway back to the mine: once the boulder is shoved its spot is
+    // a MINE_HOLE passage — step onto it to travel to the mine (two-way forever).
+    if (lushRockPushed && !transition.active) {
+        const pc = Math.floor(player.x / TILE_SIZE);
+        const pr = Math.floor(player.y / TILE_SIZE);
+        if (lushCavernsMap[pr]?.[pc] === T.MINE_HOLE) {
+            enterDungeonViaHole();
+        }
+    }
+
+    if (input.inventory) {
+        invSelectedIndex = 0;
+        gameState.change(States.INVENTORY);
+    }
+    if (input.start) {
+        saveMenuOption = 0;
+        gameState.change(States.SAVE_MENU);
+    }
 }
 
 function spawnEnemyArrow(fromX, fromY, toX, toY, damage) {
@@ -1339,6 +1677,13 @@ function respawnPlayer() {
         inLibrary = savePoint.inLibrary || false;
         inHome = savePoint.inHome || false;
         inAlchemist = savePoint.inAlchemist || false;
+        inLushCaverns = savePoint.inLushCaverns || false;
+        grappleAnim = null;
+        if (inLushCaverns) {
+            lushEnemies = lushCavernsCleared
+                ? []
+                : LUSH_SWARM_SPAWNS.map(([bx, by]) => new Enemy(bx, by, 'cave_spider'));
+        }
         if (inDungeon && !dungeonCleared) {
             enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
             enemyArrows = [];
@@ -1353,7 +1698,7 @@ function respawnPlayer() {
         } else if (inShop) {
             shopEnemies = [];
         }
-        music.play(inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome || inAlchemist) ? 'shop' : 'overworld'));
+        music.play(inLushCaverns ? 'lush' : (inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome || inAlchemist) ? 'shop' : 'overworld')));
         gameState.change(States.PLAYING);
     };
 }
@@ -1556,7 +1901,10 @@ function tryInteract() {
     for (const npc of npcs) {
         const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
         if (dist < 24) {
-            dialogue.start(npc.name, [npc.getNextDialogue()]);
+            // The Well Keeper delivers his whole hint in one talk (don't make the
+            // player tap through line by line); others cycle one line per talk.
+            const lines = npc.id === 'well_keeper' ? npc.dialogue : [npc.getNextDialogue()];
+            dialogue.start(npc.name, lines);
             gameState.change(States.DIALOGUE);
             return;
         }
@@ -1596,6 +1944,15 @@ function tryInteract() {
                 gameState.change(States.DIALOGUE);
             } else {
                 dialogue.start('', ['Just trees here...']);
+                gameState.change(States.DIALOGUE);
+            }
+        } else if (props?.interact === 'well') {
+            if (enderPearlPickedUp) {
+                // The broken well has collapsed into the caverns below — drop in.
+                camera.shake(2, 12);
+                enterLushCaverns(); // registry well-drop spawn (mid-map, the arena)
+            } else {
+                dialogue.start('Well', ['An old stone well. The water sits calm and dark.', 'You toss a pebble in and hear a distant plip.']);
                 gameState.change(States.DIALOGUE);
             }
         }
@@ -1670,6 +2027,7 @@ function performSave(slot) {
         inLibrary,
         inHome,
         inAlchemist,
+        inLushCaverns,
         secretBushCollected,
         puzzleSolved: puzzle.solved,
         dungeonCleared,
@@ -1680,6 +2038,12 @@ function performSave(slot) {
         dungeonChestOpened: dungeonChest?.opened || false,
         dungeonChestX: dungeonChest?.x || null,
         dungeonChestY: dungeonChest?.y || null,
+        // L2 Lush Caverns
+        lushCavernsCleared,
+        lushHookAcquired,
+        lushRockPushed,
+        lushSecretFound,
+        lushChestOpened: lushChest?.opened || false,
     };
     saveSystem.save(slot, data);
     currentSaveSlot = slot;
@@ -1721,12 +2085,17 @@ function performRestore(slot) {
     inLibrary = data.inLibrary || false;
     inHome = data.inHome || false;
     inAlchemist = data.inAlchemist || false;
+    inLushCaverns = data.inLushCaverns || false;
     secretBushCollected = data.secretBushCollected || false;
     dungeonCleared = data.dungeonCleared || false;
     lockedRoomOpen = data.lockedRoomOpen || false;
     enderPearlPickedUp = data.enderPearlPickedUp || false;
     shopSkeletonFreed = data.shopSkeletonFreed || false;
     shopSkeletonDefeated = data.shopSkeletonDefeated || false;
+    lushCavernsCleared = data.lushCavernsCleared || false;
+    lushHookAcquired = data.lushHookAcquired || false;
+    lushRockPushed = data.lushRockPushed || false;
+    lushSecretFound = data.lushSecretFound || false;
 
     // Restore puzzle state
     if (data.puzzleSolved) {
@@ -1744,6 +2113,17 @@ function performRestore(slot) {
         dungeonMap[LOCKED_DOOR_ROW][LOCKED_DOOR_COLS[0]] = T.DUNGEON_FLOOR;
         dungeonMap[LOCKED_DOOR_ROW][LOCKED_DOOR_COLS[1]] = T.DUNGEON_FLOOR;
     }
+
+    // Restore L2 mutated tiles (boulder shoved → mine hole open; secret taken)
+    if (data.lushRockPushed) {
+        lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MINE_HOLE;
+        dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.MINE_HOLE;
+    }
+    if (data.lushSecretFound) {
+        lushCavernsMap[LUSH_SECRET_ROW][LUSH_SECRET_COL] = T.MOSS_FLOOR;
+    }
+    // Re-place the post-Ender-Pearl Well Keeper villager near the mine exit.
+    ensureWellKeeper();
 
     // Restore dungeon chest
     if (data.dungeonChestX !== null && data.dungeonChestX !== undefined) {
@@ -1765,13 +2145,26 @@ function performRestore(slot) {
         shopEnemies = [];
     }
 
-    savePoint = { x: data.x, y: data.y, inDungeon: data.inDungeon, inShop: data.inShop };
+    // Restore L2 Lush Caverns state
+    grappleAnim = null;
+    if (inLushCaverns && !lushCavernsCleared) {
+        lushEnemies = LUSH_SWARM_SPAWNS.map(([bx, by]) => new Enemy(bx, by, 'cave_spider'));
+    } else {
+        lushEnemies = [];
+    }
+    if (lushCavernsCleared && !lushHookAcquired) {
+        lushChest = { x: LUSH_REWARD_X, y: LUSH_REWARD_Y, opened: data.lushChestOpened || false };
+    } else {
+        lushChest = null;
+    }
+
+    savePoint = { x: data.x, y: data.y, inDungeon: data.inDungeon, inShop: data.inShop, inLushCaverns: data.inLushCaverns };
     playerName = data.name;
     currentSaveSlot = slot;
 
     camera.x = 0;
     camera.y = 0;
-    music.play(inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome || inAlchemist) ? 'shop' : 'overworld'));
+    music.play(inLushCaverns ? 'lush' : (inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome || inAlchemist) ? 'shop' : 'overworld')));
     gameState.change(States.PLAYING);
 }
 
@@ -2039,6 +2432,7 @@ function renderCharacterSelect() {
 const LEVEL_UPDATE = {
     village: updatePlaying,
     mine: updateDungeon,
+    lush_caverns: updateLushCaverns,
     shop: updateShopInterior,
     library: updateLibraryInterior,
     home: updateHomeInterior,
@@ -2048,6 +2442,7 @@ const LEVEL_UPDATE = {
 const LEVEL_RENDER = {
     village: renderTownScene,
     mine: renderDungeonScene,
+    lush_caverns: renderLushCavernsScene,
     shop: renderShopScene,
     library: renderLibraryScene,
     home: renderHomeScene,
@@ -2199,6 +2594,73 @@ function renderDungeonScene() {
     // Dungeon label
     ctx.fillStyle = '#888';
     drawSmallText(ctx, 'The Mine', VIRTUAL_WIDTH / 2 - 24, 2);
+}
+
+function renderLushCavernsScene() {
+    const camX = camera.getDrawX();
+    const camY = camera.getDrawY();
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    renderMap(ctx, lushCavernsMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
+
+    const entities = [];
+    entities.push({ y: player.y, render: () => player.render(ctx) });
+    for (const enemy of lushEnemies) {
+        if (enemy.active) entities.push({ y: enemy.y, render: () => enemy.render(ctx) });
+    }
+    for (const drop of drops) {
+        if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
+    }
+    for (const arrow of arrows) {
+        if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
+
+    // Reward chest (Tripwire Hook)
+    if (lushChest) {
+        entities.push({ y: lushChest.y + 8, render: () => {
+            drawChest(ctx, lushChest.x, lushChest.y, lushChest.opened);
+            if (!lushChest.opened) {
+                const dist = Math.abs(player.x - lushChest.x) + Math.abs(player.y - lushChest.y);
+                if (dist < 28) {
+                    ctx.fillStyle = '#E8A23D';
+                    drawSmallText(ctx, 'Press A to open', lushChest.x - 40, lushChest.y - 28);
+                }
+            }
+        }});
+    }
+
+    entities.sort((a, b) => a.y - b.y);
+    for (const ent of entities) ent.render();
+
+    // Grapple rope: draw a line from the player toward the anchor mid-tween.
+    if (grappleAnim) {
+        ctx.strokeStyle = '#CCC';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(player.x, player.y - 4);
+        ctx.lineTo(grappleAnim.toX, grappleAnim.toY - 4);
+        ctx.stroke();
+    }
+
+    // Grapple hint when standing on the near rim with the hook in hand.
+    if (inventory.has('tripwire_hook') && !grappleAnim) {
+        const pr = Math.floor(player.y / TILE_SIZE);
+        if (pr >= LUSH_ANCHOR_ROW + 1 && pr <= LUSH_ANCHOR_ROW + 4) {
+            const pc = Math.floor(player.x / TILE_SIZE);
+            if (pc >= LUSH_ANCHOR_COLS[0] - 2 && pc <= LUSH_ANCHOR_COLS[1] + 2) {
+                ctx.fillStyle = '#2EC4B6';
+                drawSmallText(ctx, 'Face up + A to grapple', player.x - 62, player.y - 30);
+            }
+        }
+    }
+
+    ctx.restore();
+    renderHUD(ctx, player);
+
+    ctx.fillStyle = '#6ECF92';
+    drawSmallText(ctx, 'The Lush Caverns', VIRTUAL_WIDTH / 2 - 48, 2);
 }
 
 function renderShopScene() {

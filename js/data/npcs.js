@@ -83,6 +83,29 @@ export const npcData = [
     },
 ];
 
+// Well Keeper - appears in the village near the mine exit ONLY after the Ender
+// Pearl is found. Points the player to the broken well (entrance to L2).
+export const wellKeeperData = {
+    id: 'well_keeper',
+    name: 'Well Keeper',
+    tileX: 8, tileY: 24,
+    facing: 'left',
+    palette: {
+        hair: '#3A6B8B',
+        skin: '#C4956A',
+        eye: '#333333',
+        nose: '#B0845A',
+        robe: '#2E6B6B',
+        shoe: '#3D2D20',
+    },
+    dialogue: [
+        "Back from the mine already? Then you'll want to hear this.",
+        "The old well in the square has broken open.",
+        "Its bottom caved in — and a strange green glow seeps up from below.",
+        "Climb down and see what stirs beneath us. Carefully, now!",
+    ]
+};
+
 // Library NPC - Alex the archivist (inside the library)
 export const libraryNpcData = {
     id: 'archivist',

@@ -103,6 +103,19 @@ const dungeonBass = [
     { note: NOTE.E3, dur: 2.0 }, { note: NOTE.REST, dur: 1.5 },
 ];
 
+// Lush Caverns ambience — the dungeon theme with sparse high "plips" of water
+// dripping layered on top. Subtle: just enough to feel wetter/greener than the
+// bare mine. (See the 'lush' branch in music.play.)
+const lushDrips = [
+    { note: NOTE.REST, dur: 1.0 }, { note: NOTE.C5, dur: 0.16 },
+    { note: NOTE.REST, dur: 1.6 }, { note: NOTE.E5, dur: 0.16 },
+    { note: NOTE.REST, dur: 1.2 }, { note: NOTE.G5, dur: 0.13 },
+    { note: NOTE.REST, dur: 1.7 }, { note: NOTE.D5, dur: 0.16 },
+    { note: NOTE.REST, dur: 1.1 }, { note: NOTE.A5, dur: 0.13 },
+    { note: NOTE.REST, dur: 1.5 }, { note: NOTE.C5, dur: 0.14 },
+    { note: NOTE.REST, dur: 1.3 },
+];
+
 // Shop theme - warm, cozy, medieval market feel
 const shopMelody = [
     // Phrase 1 - Welcoming, bouncy melody
@@ -235,6 +248,13 @@ export const music = {
             playLoop([
                 { notes: dungeonMelody, type: 'square', gain: 0.15 },
                 { notes: dungeonBass, type: 'sine', gain: 0.2 },
+            ], track, gen);
+        } else if (track === 'lush') {
+            // Same bones as the dungeon, plus a faint dripping-water layer.
+            playLoop([
+                { notes: dungeonMelody, type: 'square', gain: 0.15 },
+                { notes: dungeonBass, type: 'sine', gain: 0.2 },
+                { notes: lushDrips, type: 'sine', gain: 0.11 },
             ], track, gen);
         } else if (track === 'shop') {
             playLoop([

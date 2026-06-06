@@ -799,6 +799,17 @@ const ITEM_SPRITES = {
         [0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
     ],
+    // Tripwire Hook (L2 grapple) — iron hook on a coil of string
+    tripwire_hook: [
+        [0, 0, 0, 0, '#888','#AAA', 0, 0],
+        [0, 0, 0, 0, 0, '#888', 0, 0],
+        [0, 0, '#AAA','#CCC','#AAA','#888', 0, 0],
+        [0, '#888','#CCC', 0, 0, 0, 0, 0],
+        [0, '#888','#AAA', 0, 0, 0, 0, 0],
+        [0, 0, '#888','#AAA', 0, 0, 0, 0],
+        ['#6B4226','#8B6914','#6B4226','#8B6914','#6B4226', 0, 0, 0],
+        [0, '#6B4226','#8B6914','#6B4226', 0, 0, 0, 0],
+    ],
 };
 
 export function drawItem(ctx, x, y, itemId, scale = 2) {
@@ -989,6 +1000,46 @@ export function drawSkeleton(ctx, x, y, animFrame, scale = 2) {
     const offsetX = x - (12 * scale) / 2;
     const offsetY = y - (16 * scale) + 8;
     drawPixelGrid(ctx, offsetX, offsetY, scale, resolved);
+}
+
+// ── CAVE SPIDER SPRITE (L2 swarm) — small, fast, dark-teal with red eyes ──
+// Drawn procedurally (not a pixel grid) so the legs can twitch per animFrame.
+export function drawCaveSpider(ctx, x, y, animFrame, scale = 2) {
+    const body = '#1E3528';   // dark mossy spider body
+    const back = '#2EC4B6';   // cave-glow teal marking
+    const leg  = '#142019';
+    const eye  = '#CC1111';
+
+    // Center the ~16px sprite on (x, y); feet near y.
+    const cx = Math.round(x);
+    const cy = Math.round(y - 6);
+    const t = animFrame % 2 === 0 ? 0 : 1; // leg twitch
+
+    // Legs (4 per side), twitching with the frame
+    ctx.fillStyle = leg;
+    for (let i = 0; i < 4; i++) {
+        const ly = cy - 4 + i * 3;
+        const spread = 8 + (i === 1 || i === 2 ? 2 : 0) + t;
+        ctx.fillRect(cx - spread, ly, spread - 3, 2);   // left leg
+        ctx.fillRect(cx + 3, ly, spread - 3, 2);        // right leg
+    }
+
+    // Abdomen
+    ctx.fillStyle = body;
+    ctx.fillRect(cx - 5, cy - 3, 10, 12);
+    // Head
+    ctx.fillRect(cx - 4, cy - 7, 8, 5);
+    // Teal glow marking on the back
+    ctx.fillStyle = back;
+    ctx.fillRect(cx - 2, cy + 1, 4, 4);
+    if (animFrame % 2 === 1) {
+        ctx.fillStyle = 'rgba(46, 196, 182, 0.4)';
+        ctx.fillRect(cx - 3, cy, 6, 6);
+    }
+    // Red eyes
+    ctx.fillStyle = eye;
+    ctx.fillRect(cx - 3, cy - 6, 2, 2);
+    ctx.fillRect(cx + 1, cy - 6, 2, 2);
 }
 
 // Draw skeleton trapped (with chains/cage bars)

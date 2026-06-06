@@ -50,6 +50,21 @@ export const T = {
     SECRET_BUSH: 45,
     LECTERN: 46,
     DOOR_ALCH: 47,
+
+    // ── L2 Lush Caverns (reserved block 48–63, docs/LEVEL_SPEC.md §6) ──
+    MOSS_FLOOR: 48,       // walkable mossy cave floor (the L2 base floor)
+    MOSS_WALL: 49,        // mossy cave wall (solid)
+    CAVE_WATER: 50,       // deep cave water — solid barrier, grapple over it
+    CHASM: 51,            // bottomless gap — solid barrier, grapple over it
+    GLOW_BERRY: 52,       // glowing berry vines on the wall (solid decor)
+    DRIPLEAF: 53,         // big dripleaf — walkable traversal platform
+    VINE: 54,             // hanging vines (walkable, decorative)
+    HOOK_ANCHOR: 55,      // grapple target — solid, the hook latches onto it
+    CLAY: 56,             // clay block floor accent (walkable)
+    LUSH_EXIT: 57,        // (reserved) forward exit to deep_dark — deferred until L3
+    LUSH_ROCK: 58,        // pushable boulder — the L2 exit; shove it to open the mine
+    LUSH_SECRET: 59,      // hidden glow-berry stash (looks like wall; +emeralds once)
+    MINE_HOLE: 60,        // passage punched in the mine's right wall (L1<->L2 link)
 };
 
 export const tileProps = {
@@ -68,7 +83,7 @@ export const tileProps = {
     [T.SAND]:             { solid: false, color: '#D4B896', color2: '#C4A886' },
     [T.FLOWER_RED]:       { solid: false, color: '#5B8731', color2: '#4A7628', decor: '#CC3333' },
     [T.FLOWER_YELLOW]:    { solid: false, color: '#5B8731', color2: '#4A7628', decor: '#CCCC33' },
-    [T.WELL]:             { solid: true,  color: '#6B6B6B', color2: '#555555' },
+    [T.WELL]:             { solid: true,  color: '#6B6B6B', color2: '#555555', interact: 'well' },
     [T.FOUNTAIN]:         { solid: true,  color: '#3366CC', color2: '#2255BB', animated: true },
     [T.ROOF_WOOD]:        { solid: false, color: '#8B4513', color2: '#7A3A0E', overhead: true },
     [T.ROOF_STONE]:       { solid: false, color: '#5A5A5A', color2: '#4A4A4A', overhead: true },
@@ -101,4 +116,19 @@ export const tileProps = {
     [T.SECRET_BUSH]:      { solid: false, color: '#2D5A1E', color2: '#1E4A12', interact: 'secret_bush' },
     [T.LECTERN]:          { solid: true,  color: '#7A5C12', color2: '#6B4226', interact: 'lectern' },
     [T.DOOR_ALCH]:        { solid: false, color: '#3D1A5A', color2: '#2A1040', interact: 'alchemist' },
+
+    // ── L2 Lush Caverns ──
+    [T.MOSS_FLOOR]:       { solid: false, color: '#3D6B22', color2: '#2D5A1E' },
+    [T.MOSS_WALL]:        { solid: true,  color: '#2D4A1E', color2: '#1E3514' },
+    [T.CAVE_WATER]:       { solid: true,  color: '#2E6B6B', color2: '#1E5252', animated: true },
+    [T.CHASM]:            { solid: true,  color: '#0E140E', color2: '#070A07' },
+    [T.GLOW_BERRY]:       { solid: true,  color: '#2D4A1E', color2: '#1E3514', decor: '#E8A23D' },
+    [T.DRIPLEAF]:         { solid: false, color: '#3A7A5A', color2: '#2D6048' },
+    [T.VINE]:             { solid: false, color: '#3D6B22', color2: '#2D5A1E', decor: '#4A8B2E' },
+    [T.HOOK_ANCHOR]:      { solid: true,  color: '#5A4630', color2: '#473522' },
+    [T.CLAY]:             { solid: false, color: '#9A7A5A', color2: '#856848' },
+    [T.LUSH_EXIT]:        { solid: false, color: '#1A2E1A', color2: '#0D1A0D', interact: 'lush_exit' },
+    [T.LUSH_ROCK]:        { solid: true,  color: '#5A5246', color2: '#46402F', interact: 'lush_rock' },
+    [T.LUSH_SECRET]:      { solid: true,  color: '#2D4A1E', color2: '#1E3514', interact: 'lush_secret' },
+    [T.MINE_HOLE]:        { solid: false, color: '#0E140E', color2: '#070A07' },
 };

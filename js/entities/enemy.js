@@ -1,4 +1,4 @@
-import { drawZombie, drawSkeleton } from '../rendering/sprites.js';
+import { drawZombie, drawSkeleton, drawCaveSpider } from '../rendering/sprites.js';
 import { collidesWithMap } from '../engine/collision.js';
 
 export class Enemy {
@@ -29,6 +29,19 @@ export class Enemy {
             this.preferredRange = 80; // tries to stay this far from player
         }
 
+        // Cave-spider swarm member: fast, fragile, many of them (L2 mini-boss).
+        // Tuned kid-fair — 2 HP each, 1 dmg, quick and twitchy but easy to pop.
+        if (type === 'cave_spider') {
+            this.hp = 2;
+            this.maxHp = 2;
+            this.damage = 1;
+            this.speed = 1.0;
+            // Large detection so the swarm relentlessly converges on the player
+            // and doesn't idle-wander out of the arena (enemies don't collide
+            // with walls). Keeps the swarm fight readable and clearable.
+            this.detectionRadius = 420;
+        }
+
         // State
         this.state = 'idle'; // idle, chasing, attacking, hurt, dead
         this.facing = 'down';
@@ -56,6 +69,21 @@ export class Enemy {
 
     update(playerX, playerY, map) {
         if (!this.active) return;
+
+        // Safety: if position/velocity ever goes non-finite (e.g. a degenerate
+        // 0/0 normalize when stacked exactly on the player), snap back near the
+        // player so the enemy stays on the board and remains hittable.
+        if (!Number.isFinite(this.x) || !Number.isFinite(this.y)) {
+            this.x = playerX + 12;
+            this.y = playerY + 12;
+            this.knockbackVX = 0;
+            this.knockbackVY = 0;
+            this.knockbackTimer = 0;
+        }
+        if (!Number.isFinite(this.knockbackVX) || !Number.isFinite(this.knockbackVY)) {
+            this.knockbackVX = 0;
+            this.knockbackVY = 0;
+        }
 
         // Knockback
         if (this.knockbackTimer > 0) {
@@ -200,7 +228,9 @@ export class Enemy {
     render(ctx) {
         if (!this.active) return;
 
-        const drawFn = this.type === 'dungeon_skeleton' ? drawSkeleton : drawZombie;
+        const drawFn = this.type === 'dungeon_skeleton' ? drawSkeleton
+            : this.type === 'cave_spider' ? drawCaveSpider
+            : drawZombie;
 
         // Death shrink
         if (this.state === 'dead') {

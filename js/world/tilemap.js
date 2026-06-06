@@ -86,7 +86,150 @@ function drawTile(ctx, tileId, props, x, y) {
                     ctx.fillRect(x + 15, y + 4, 2, 3);
                 }
                 break;
+            case '#E8A23D': // Glow-berry vine (L2) — gold berries on a dark wall
+                ctx.fillStyle = '#3D5A28';
+                ctx.fillRect(x + 6, y + 0, 3, 20);
+                ctx.fillRect(x + 20, y + 0, 3, 24);
+                ctx.fillRect(x + 13, y + 0, 2, 14);
+                ctx.fillStyle = '#E8A23D';
+                ctx.fillRect(x + 5, y + 8, 5, 5);
+                ctx.fillRect(x + 19, y + 14, 5, 5);
+                ctx.fillRect(x + 12, y + 18, 4, 4);
+                ctx.fillStyle = '#FFD27A';
+                ctx.fillRect(x + 6, y + 9, 2, 2);
+                ctx.fillRect(x + 20, y + 15, 2, 2);
+                if (animFrame === 1) { // gentle glow pulse
+                    ctx.fillStyle = 'rgba(232, 162, 61, 0.25)';
+                    ctx.fillRect(x + 3, y + 6, 10, 10);
+                    ctx.fillRect(x + 17, y + 12, 10, 10);
+                }
+                break;
+            case '#4A8B2E': // Hanging vine (L2)
+                ctx.fillStyle = '#2D5A1E';
+                ctx.fillRect(x + 8, y + 0, 3, 28);
+                ctx.fillRect(x + 20, y + 0, 3, 22);
+                ctx.fillStyle = '#4A8B2E';
+                ctx.fillRect(x + 7, y + 6, 2, 4);
+                ctx.fillRect(x + 19, y + 12, 2, 4);
+                ctx.fillRect(x + 9, y + 20, 2, 4);
+                break;
         }
+    }
+
+    // ── L2 Lush Caverns special tiles ──
+    if (tileId === 50) { // T.CAVE_WATER — teal cave pool with drips
+        ctx.fillStyle = '#1E5252';
+        ctx.fillRect(x + 2, y + 2, s - 4, s - 4);
+        ctx.fillStyle = animFrame === 1 ? '#3A8B8B' : '#2E6B6B';
+        ctx.fillRect(x + 5, y + 8, 8, 2);
+        ctx.fillRect(x + 18, y + 16, 8, 2);
+        ctx.fillRect(x + 10, y + 22, 7, 2);
+    }
+
+    if (tileId === 51) { // T.CHASM — bottomless dark gap with crumbling rim
+        ctx.fillStyle = '#070A07';
+        ctx.fillRect(x + 3, y + 3, s - 6, s - 6);
+        ctx.fillStyle = '#243A22';
+        ctx.fillRect(x, y, s, 3);
+        ctx.fillRect(x, y + s - 3, s, 3);
+        ctx.fillRect(x, y, 3, s);
+        ctx.fillRect(x + s - 3, y, 3, s);
+    }
+
+    if (tileId === 53) { // T.DRIPLEAF — big dripleaf traversal platform
+        ctx.fillStyle = '#2D6048';
+        ctx.fillRect(x + 1, y + 4, s - 2, s - 8);
+        ctx.fillStyle = '#4A9A6E';
+        ctx.fillRect(x + 4, y + 6, s - 8, 10);
+        // central stem
+        ctx.fillStyle = '#6ECF92';
+        ctx.fillRect(x + 14, y + 8, 4, s - 12);
+        // leaf veins
+        ctx.fillStyle = '#2D6048';
+        ctx.fillRect(x + 8, y + 12, 16, 1);
+        ctx.fillRect(x + 8, y + 18, 16, 1);
+    }
+
+    if (tileId === 55) { // T.HOOK_ANCHOR — wooden post the grapple latches onto
+        ctx.fillStyle = '#473522';
+        ctx.fillRect(x, y, s, s);
+        ctx.fillStyle = '#5A4630';
+        ctx.fillRect(x + 8, y + 2, 16, s - 4);
+        ctx.fillStyle = '#6B5238';
+        ctx.fillRect(x + 11, y + 4, 10, s - 8);
+        // iron ring the hook catches
+        ctx.fillStyle = '#888';
+        ctx.fillRect(x + 11, y + 6, 10, 3);
+        ctx.fillStyle = '#AAA';
+        ctx.fillRect(x + 12, y + 7, 8, 1);
+        if (animFrame === 1) {
+            ctx.fillStyle = 'rgba(232, 162, 61, 0.35)';
+            ctx.fillRect(x + 9, y + 4, 14, 8);
+        }
+    }
+
+    if (tileId === 56) { // T.CLAY — smooth clay accent floor
+        ctx.fillStyle = '#856848';
+        ctx.fillRect(x + 2, y + 2, 13, 13);
+        ctx.fillRect(x + 17, y + 17, 13, 13);
+        ctx.fillStyle = '#9A7A5A';
+        ctx.fillRect(x + 17, y + 2, 13, 13);
+        ctx.fillRect(x + 2, y + 17, 13, 13);
+    }
+
+    if (tileId === 57) { // T.LUSH_EXIT — dark mossy passage onward
+        ctx.fillStyle = '#0D1A0D';
+        ctx.fillRect(x + 4, y + 2, s - 8, s - 2);
+        ctx.fillStyle = '#1A2E1A';
+        ctx.fillRect(x + 7, y + 6, s - 14, s - 6);
+        // glow-berry lit archway
+        ctx.fillStyle = '#3D5A28';
+        ctx.fillRect(x + 2, y, 3, s);
+        ctx.fillRect(x + s - 5, y, 3, s);
+        ctx.fillStyle = '#E8A23D';
+        ctx.fillRect(x + 2, y + 5, 3, 3);
+        ctx.fillRect(x + s - 5, y + 11, 3, 3);
+        if (animFrame === 1) {
+            ctx.fillStyle = 'rgba(46, 196, 182, 0.25)';
+            ctx.fillRect(x + 9, y + 9, s - 18, s - 12);
+        }
+    }
+
+    if (tileId === 58) { // T.LUSH_ROCK — a shove-able boulder (the L2 exit)
+        ctx.fillStyle = '#46402F';
+        ctx.fillRect(x + 3, y + 6, s - 6, s - 9);
+        ctx.fillStyle = '#5A5246';
+        ctx.fillRect(x + 6, y + 4, s - 14, s - 10);
+        ctx.fillStyle = '#6B6353';
+        ctx.fillRect(x + 9, y + 7, 9, 7);
+        // cracks + shadow
+        ctx.fillStyle = '#33301F';
+        ctx.fillRect(x + 14, y + 10, 2, 10);
+        ctx.fillRect(x + 10, y + 16, 9, 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(x + 4, y + s - 5, s - 8, 3);
+    }
+
+    if (tileId === 59) { // T.LUSH_SECRET — disguised as mossy wall; faint sparkle
+        // base fill/speckle already drew the moss-wall look; just hint a glimmer
+        if (animFrame === 1) {
+            ctx.fillStyle = 'rgba(232, 162, 61, 0.18)';
+            ctx.fillRect(x + 13, y + 13, 5, 5);
+            ctx.fillStyle = 'rgba(120, 220, 120, 0.15)';
+            ctx.fillRect(x + 8, y + 20, 3, 3);
+        }
+    }
+
+    if (tileId === 60) { // T.MINE_HOLE — passage punched through the mine wall
+        ctx.fillStyle = '#070A07';
+        ctx.fillRect(x + 3, y + 3, s - 6, s - 6);
+        // jagged broken-rock rim
+        ctx.fillStyle = '#3A3A3A';
+        ctx.fillRect(x + 1, y + 1, s - 2, 3);
+        ctx.fillRect(x + 1, y + s - 4, s - 2, 3);
+        ctx.fillStyle = '#2A4A1E'; // moss creeping in from the lush side
+        ctx.fillRect(x + s - 4, y + 8, 3, 6);
+        ctx.fillRect(x + s - 6, y + 16, 3, 4);
     }
 
     // Special tile rendering
