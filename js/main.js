@@ -30,7 +30,7 @@ import { saveSystem } from './systems/saveSystem.js';
 import { LEVELS, getLevel, levelIdFromFlags } from './world/levels.js';
 import { installDebugHook } from './engine/debugHook.js';
 
-export const VERSION = '1.2.0';
+export const VERSION = '1.3.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -346,12 +346,7 @@ function update() {
             break;
 
         case States.PLAYING:
-            if (inDungeon) updateDungeon();
-            else if (inShop) updateShopInterior();
-            else if (inLibrary) updateLibraryInterior();
-            else if (inHome) updateHomeInterior();
-            else if (inAlchemist) updateAlchemistInterior();
-            else updatePlaying();
+            (LEVEL_UPDATE[currentLevelId()] || updatePlaying)();
             break;
 
         case States.DIALOGUE:
@@ -658,49 +653,72 @@ function updateDungeon() {
     }
 }
 
-function enterDungeon() {
-    // Sourced from the level registry (js/world/levels.js) — the single source
-    // of truth for spawn / boss / music. Values match the legacy constants.
-    const mine = getLevel('mine');
-    const [spawnX, spawnY] = mine.spawn;
-    // Save position at dungeon entrance
-    savePoint = { x: spawnX, y: spawnY, inDungeon: true, inShop: false };
+// ── Generic level transitions (Phase 0) ──────────────────────────────────────
+// One enterLevel() replaces the per-area enterX boilerplate. It reads spawn and
+// music from the registry (js/world/levels.js); each caller supplies only the
+// area-specific savePoint + entity setup (onEnter). setLevel() is the single
+// writer of the legacy location flags, kept in sync so every existing read of
+// inDungeon/inShop/... (save, restore, respawn, music, HUD) keeps working.
+function setLevel(id) {
+    inDungeon   = (id === 'mine');
+    inShop      = (id === 'shop');
+    inLibrary   = (id === 'library');
+    inHome      = (id === 'home');
+    inAlchemist = (id === 'alchemist');
+    // 'village' => all flags false (the town hub)
+}
+
+function enterLevel(id, { savePoint: sp = null, onEnter = null } = {}) {
+    const lvl = getLevel(id);
+    const [spawnX, spawnY] = lvl.spawn;
+    if (sp) savePoint = sp;
     transition.active = true;
     transition.timer = 0;
     transition.maxTime = 20;
     transition.callback = () => {
-        inDungeon = true;
-        inShop = false;
+        setLevel(id);
         player.x = spawnX;
         player.y = spawnY;
         camera.x = 0;
         camera.y = 0;
-        if (!dungeonCleared) {
-            const [bx, by] = mine.boss.spawn;
-            enemies = [new Enemy(bx, by, mine.boss.type)];
-        } else {
-            enemies = [];
-        }
-        enemyArrows = [];
-        music.play(mine.music);
+        if (onEnter) onEnter(lvl);
+        music.play(lvl.music);
     };
 }
 
-function exitDungeon() {
-    const exitX = 5 * TILE_SIZE + TILE_SIZE / 2;
-    const exitY = 25 * TILE_SIZE + TILE_SIZE / 2;
-    // Save position at dungeon exit
-    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false };
+// Interiors exit back to a specific village door tile (not the village spawn)
+// and — matching the original behavior — do NOT recenter the camera.
+function returnToVillage(exitX, exitY) {
+    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false, inLibrary: false, inHome: false, inAlchemist: false };
     transition.active = true;
     transition.timer = 0;
     transition.maxTime = 20;
     transition.callback = () => {
-        inDungeon = false;
-        inShop = false;
+        setLevel('village');
         player.x = exitX;
         player.y = exitY;
         music.play('overworld');
     };
+}
+
+function enterDungeon() {
+    const [spawnX, spawnY] = getLevel('mine').spawn;
+    enterLevel('mine', {
+        savePoint: { x: spawnX, y: spawnY, inDungeon: true, inShop: false },
+        onEnter: (lvl) => {
+            if (!dungeonCleared) {
+                const [bx, by] = lvl.boss.spawn;
+                enemies = [new Enemy(bx, by, lvl.boss.type)];
+            } else {
+                enemies = [];
+            }
+            enemyArrows = [];
+        },
+    });
+}
+
+function exitDungeon() {
+    returnToVillage(5 * TILE_SIZE + TILE_SIZE / 2, 25 * TILE_SIZE + TILE_SIZE / 2);
 }
 
 function spawnDungeonChest(x, y) {
@@ -759,77 +777,34 @@ function updateEnemyArrows() {
 }
 
 function enterShop() {
-    // Save position outside the shop
-    savePoint = { x: player.x, y: player.y, inDungeon: false, inShop: false };
-    transition.active = true;
-    transition.timer = 0;
-    transition.maxTime = 20;
-    transition.callback = () => {
-        inShop = true;
-        inDungeon = false;
-        player.x = SHOP_SPAWN_X;
-        player.y = SHOP_SPAWN_Y;
-        camera.x = 0;
-        camera.y = 0;
-        // Spawn skeleton enemy if freed and not defeated
-        if (shopSkeletonFreed && !shopSkeletonDefeated) {
-            shopEnemies = [new Enemy(SKELETON_X, SKELETON_Y, 'skeleton')];
-            shopEnemies[0].hp = 4;
-            shopEnemies[0].maxHp = 4;
-            shopEnemies[0].speed = 0.7;
-        } else {
-            shopEnemies = [];
-        }
-        music.play('shop');
-    };
+    enterLevel('shop', {
+        savePoint: { x: player.x, y: player.y, inDungeon: false, inShop: false },
+        onEnter: () => {
+            // Spawn skeleton enemy if freed and not defeated
+            if (shopSkeletonFreed && !shopSkeletonDefeated) {
+                shopEnemies = [new Enemy(SKELETON_X, SKELETON_Y, 'skeleton')];
+                shopEnemies[0].hp = 4;
+                shopEnemies[0].maxHp = 4;
+                shopEnemies[0].speed = 0.7;
+            } else {
+                shopEnemies = [];
+            }
+        },
+    });
 }
 
 function exitShop() {
-    const exitX = 8 * TILE_SIZE + TILE_SIZE / 2;
-    const exitY = 18 * TILE_SIZE + TILE_SIZE / 2;
-    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false };
-    transition.active = true;
-    transition.timer = 0;
-    transition.maxTime = 20;
-    transition.callback = () => {
-        inShop = false;
-        player.x = exitX;
-        player.y = exitY;
-        music.play('overworld');
-    };
+    returnToVillage(8 * TILE_SIZE + TILE_SIZE / 2, 18 * TILE_SIZE + TILE_SIZE / 2);
 }
 
 function enterLibrary() {
-    savePoint = { x: player.x, y: player.y, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
-    transition.active = true;
-    transition.timer = 0;
-    transition.maxTime = 20;
-    transition.callback = () => {
-        inLibrary = true;
-        inShop = false;
-        inDungeon = false;
-        inHome = false;
-        player.x = LIBRARY_SPAWN_X;
-        player.y = LIBRARY_SPAWN_Y;
-        camera.x = 0;
-        camera.y = 0;
-        music.play('shop'); // reuse shop music for cozy interior feel
-    };
+    enterLevel('library', {
+        savePoint: { x: player.x, y: player.y, inDungeon: false, inShop: false, inLibrary: false, inHome: false },
+    });
 }
 
 function exitLibrary() {
-    const exitX = 8 * TILE_SIZE + TILE_SIZE / 2;
-    const exitY = 10 * TILE_SIZE + TILE_SIZE / 2;
-    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
-    transition.active = true;
-    transition.timer = 0;
-    transition.maxTime = 20;
-    transition.callback = () => {
-        inLibrary = false;
-        player.x = exitX;
-        player.y = exitY;
-        music.play('overworld');
-    };
+    returnToVillage(8 * TILE_SIZE + TILE_SIZE / 2, 10 * TILE_SIZE + TILE_SIZE / 2);
 }
 
 function updateLibraryInterior() {
@@ -945,70 +920,23 @@ function tryLibraryInteract() {
 }
 
 function enterHome() {
-    savePoint = { x: player.x, y: player.y, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
-    transition.active = true;
-    transition.timer = 0;
-    transition.maxTime = 20;
-    transition.callback = () => {
-        inHome = true;
-        inShop = false;
-        inDungeon = false;
-        inLibrary = false;
-        player.x = HOME_SPAWN_X;
-        player.y = HOME_SPAWN_Y;
-        camera.x = 0;
-        camera.y = 0;
-        music.play('shop');
-    };
+    enterLevel('home', {
+        savePoint: { x: player.x, y: player.y, inDungeon: false, inShop: false, inLibrary: false, inHome: false },
+    });
 }
 
 function exitHome() {
-    const exitX = 24 * TILE_SIZE + TILE_SIZE / 2;
-    const exitY = 10 * TILE_SIZE + TILE_SIZE / 2;
-    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false, inLibrary: false, inHome: false };
-    transition.active = true;
-    transition.timer = 0;
-    transition.maxTime = 20;
-    transition.callback = () => {
-        inHome = false;
-        player.x = exitX;
-        player.y = exitY;
-        music.play('overworld');
-    };
+    returnToVillage(24 * TILE_SIZE + TILE_SIZE / 2, 10 * TILE_SIZE + TILE_SIZE / 2);
 }
 
 function enterAlchemist() {
-    savePoint = { x: player.x, y: player.y, inDungeon: false, inShop: false, inLibrary: false, inHome: false, inAlchemist: false };
-    transition.active = true;
-    transition.timer = 0;
-    transition.maxTime = 20;
-    transition.callback = () => {
-        inAlchemist = true;
-        inShop = false;
-        inDungeon = false;
-        inLibrary = false;
-        inHome = false;
-        player.x = ALCHEMIST_SPAWN_X;
-        player.y = ALCHEMIST_SPAWN_Y;
-        camera.x = 0;
-        camera.y = 0;
-        music.play('shop');
-    };
+    enterLevel('alchemist', {
+        savePoint: { x: player.x, y: player.y, inDungeon: false, inShop: false, inLibrary: false, inHome: false, inAlchemist: false },
+    });
 }
 
 function exitAlchemist() {
-    const exitX = 25 * TILE_SIZE + TILE_SIZE / 2;
-    const exitY = 18 * TILE_SIZE + TILE_SIZE / 2;
-    savePoint = { x: exitX, y: exitY, inDungeon: false, inShop: false, inLibrary: false, inHome: false, inAlchemist: false };
-    transition.active = true;
-    transition.timer = 0;
-    transition.maxTime = 20;
-    transition.callback = () => {
-        inAlchemist = false;
-        player.x = exitX;
-        player.y = exitY;
-        music.play('overworld');
-    };
+    returnToVillage(25 * TILE_SIZE + TILE_SIZE / 2, 18 * TILE_SIZE + TILE_SIZE / 2);
 }
 
 function updateHomeInterior() {
@@ -2105,13 +2033,29 @@ function renderCharacterSelect() {
     }
 }
 
+// Data-driven scene dispatch keyed by the canonical level id. New levels add a
+// handler entry here; the boolean chain is gone. (Function declarations are
+// hoisted, so these references resolve regardless of definition order.)
+const LEVEL_UPDATE = {
+    village: updatePlaying,
+    mine: updateDungeon,
+    shop: updateShopInterior,
+    library: updateLibraryInterior,
+    home: updateHomeInterior,
+    alchemist: updateAlchemistInterior,
+};
+
+const LEVEL_RENDER = {
+    village: renderTownScene,
+    mine: renderDungeonScene,
+    shop: renderShopScene,
+    library: renderLibraryScene,
+    home: renderHomeScene,
+    alchemist: renderAlchemistScene,
+};
+
 function renderCurrentScene() {
-    if (inDungeon) renderDungeonScene();
-    else if (inShop) renderShopScene();
-    else if (inLibrary) renderLibraryScene();
-    else if (inHome) renderHomeScene();
-    else if (inAlchemist) renderAlchemistScene();
-    else renderTownScene();
+    (LEVEL_RENDER[currentLevelId()] || renderTownScene)();
 }
 
 function renderTownScene() {
