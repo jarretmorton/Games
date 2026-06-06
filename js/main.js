@@ -311,6 +311,7 @@ function startGame() {
     lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.LUSH_ROCK;
     lushCavernsMap[LUSH_SECRET_ROW][LUSH_SECRET_COL] = T.LUSH_SECRET;
     dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.DUNGEON_WALL;
+    tileProps[T.WELL].solid = true; // re-seal the well until the Ender Pearl is found
 
     // Hook up weapon purchase callback to free the skeleton
     shop.onWeaponPurchased = () => {
@@ -523,6 +524,8 @@ function updatePlaying() {
                 enterHome();
             } else if (interact === 'alchemist' && !transition.active) {
                 enterAlchemist();
+            } else if (interact === 'well' && enderPearlPickedUp && !transition.active) {
+                enterLushCaverns(); // step onto the broken well → fall into L2 (no button)
             }
         }
     }
@@ -780,7 +783,10 @@ function enterDungeon() {
 // Place the Well Keeper villager by the mine exit once the Ender Pearl is found.
 // Idempotent — safe to call on every dungeon exit and on restore.
 function ensureWellKeeper() {
-    if (wellKeeperAdded || !enderPearlPickedUp) return;
+    if (!enderPearlPickedUp) return;
+    // The broken well becomes walkable now — step onto it to fall into L2.
+    tileProps[T.WELL].solid = false;
+    if (wellKeeperAdded) return;
     npcs.push(...createNPCs([wellKeeperData]));
     wellKeeperAdded = true;
 }
@@ -1895,7 +1901,10 @@ function tryInteract() {
     for (const npc of npcs) {
         const dist = Math.abs(point.x - npc.x) + Math.abs(point.y - npc.y);
         if (dist < 24) {
-            dialogue.start(npc.name, [npc.getNextDialogue()]);
+            // The Well Keeper delivers his whole hint in one talk (don't make the
+            // player tap through line by line); others cycle one line per talk.
+            const lines = npc.id === 'well_keeper' ? npc.dialogue : [npc.getNextDialogue()];
+            dialogue.start(npc.name, lines);
             gameState.change(States.DIALOGUE);
             return;
         }

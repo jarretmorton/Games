@@ -99,10 +99,10 @@ export const wellKeeperData = {
         shoe: '#3D2D20',
     },
     dialogue: [
-        "Oh! You climbed up out of the mine!",
-        "Listen — the old well in the square has broken.",
-        "Its bottom caved in... and a strange green glow drifts up from below.",
-        "Go and take a look. Climb down the well — but do be careful!",
+        "Back from the mine already? Then you'll want to hear this.",
+        "The old well in the square has broken open.",
+        "Its bottom caved in — and a strange green glow seeps up from below.",
+        "Climb down and see what stirs beneath us. Carefully, now!",
     ]
 };
 
