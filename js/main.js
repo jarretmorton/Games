@@ -9,6 +9,7 @@ import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELET
 import { libraryMap, LIBRARY_SPAWN_X, LIBRARY_SPAWN_Y, LIBRARY_NPC_X, LIBRARY_NPC_Y, libraryBreakablePositions } from './world/libraryMap.js';
 import { homeMap, HOME_SPAWN_X, HOME_SPAWN_Y, HOME_NPC_X, HOME_NPC_Y, homeBreakablePositions } from './world/homeMap.js';
 import { alchemistMap, ALCHEMIST_SPAWN_X, ALCHEMIST_SPAWN_Y, alchemistBreakablePositions } from './world/alchemistMap.js';
+import { lushCavernsMap, LUSH_SPAWN_X, LUSH_SPAWN_Y, LUSH_SWARM_SPAWNS, LUSH_REWARD_X, LUSH_REWARD_Y, LUSH_ANCHOR_ROW, LUSH_ANCHOR_COLS } from './world/lushCavernsMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
 import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton, drawChest } from './rendering/sprites.js';
@@ -28,7 +29,7 @@ import { itemDefs } from './data/items.js';
 import { music } from './audio/music.js';
 import { saveSystem } from './systems/saveSystem.js';
 import { LEVELS, getLevel, levelIdFromFlags } from './world/levels.js';
-import { installDebugHook } from './engine/debugHook.js';
+import { installDebugHook, debugEnabled } from './engine/debugHook.js';
 
 export const VERSION = '1.3.0';
 
@@ -89,6 +90,14 @@ let alchemistBreakables = [];
 
 // Secret bush state (one-time reward)
 let secretBushCollected = false;
+
+// ── L2 Lush Caverns interior state ──
+let inLushCaverns = false;
+let lushEnemies = [];                 // the cave-spider swarm
+let lushCavernsCleared = false;       // boss clearedFlag (whole swarm defeated)
+let lushHookAcquired = false;         // Tripwire Hook reward picked up
+let lushChest = null;                 // reward chest (spawns after the swarm dies)
+let grappleAnim = null;               // active grapple tween (see updateLushCaverns)
 
 // Save point for respawning after death
 let savePoint = { x: SPAWN_X, y: SPAWN_Y, inDungeon: false, inShop: false };
@@ -190,12 +199,12 @@ let transition = { active: false, timer: 0, maxTime: 30, callback: null };
 // the canonical currentLevelId + flag bag that the registry, debug hook, and
 // save format share. See js/world/levels.js and docs/LEVEL_SPEC.md §4.
 function currentLevelId() {
-    return levelIdFromFlags({ inDungeon, inShop, inLibrary, inHome, inAlchemist });
+    return levelIdFromFlags({ inDungeon, inShop, inLibrary, inHome, inAlchemist, inLushCaverns });
 }
 
 function currentFlags() {
     return {
-        inDungeon, inShop, inLibrary, inHome, inAlchemist,
+        inDungeon, inShop, inLibrary, inHome, inAlchemist, inLushCaverns,
         puzzleSolved: puzzle.solved,
         dungeonCleared,
         lockedRoomOpen,
@@ -203,6 +212,8 @@ function currentFlags() {
         shopSkeletonFreed,
         shopSkeletonDefeated,
         secretBushCollected,
+        lushCavernsCleared,
+        lushHookAcquired,
     };
 }
 
@@ -279,6 +290,14 @@ function startGame() {
     inLibrary = false;
     inHome = false;
     inAlchemist = false;
+
+    // L2 Lush Caverns reset
+    inLushCaverns = false;
+    lushEnemies = [];
+    lushCavernsCleared = false;
+    lushHookAcquired = false;
+    lushChest = null;
+    grappleAnim = null;
 
     // Hook up weapon purchase callback to free the skeleton
     shop.onWeaponPurchased = () => {
@@ -514,6 +533,13 @@ function updatePlaying() {
         saveMenuOption = 0;
         gameState.change(States.SAVE_MENU);
     }
+
+    // ── TEMPORARY DEV ENTRANCE to L2 (pilot only; debug builds only) ──
+    // Press L in the village under ?debug=1 to warp straight into the Lush
+    // Caverns for testing. NOT the canonical L1→L2 connection (orchestrator call).
+    if (debugEnabled() && input.isPressed('KeyL') && !transition.active) {
+        devWarpToLushCaverns();
+    }
 }
 
 function updateDungeon() {
@@ -642,6 +668,14 @@ function updateDungeon() {
         exitDungeon();
     }
 
+    // ── TEMPORARY DEV ENTRANCE to L2 (pilot only; debug builds only) ──
+    // Press L in the mine under ?debug=1 to warp into the Lush Caverns. This is
+    // NOT the canonical L1→L2 connection — see the orchestrator report. Remove
+    // once the real transition is wired.
+    if (debugEnabled() && input.isPressed('KeyL') && !transition.active) {
+        devWarpToLushCaverns();
+    }
+
     if (input.inventory) {
         invSelectedIndex = 0;
         gameState.change(States.INVENTORY);
@@ -660,11 +694,12 @@ function updateDungeon() {
 // writer of the legacy location flags, kept in sync so every existing read of
 // inDungeon/inShop/... (save, restore, respawn, music, HUD) keeps working.
 function setLevel(id) {
-    inDungeon   = (id === 'mine');
-    inShop      = (id === 'shop');
-    inLibrary   = (id === 'library');
-    inHome      = (id === 'home');
-    inAlchemist = (id === 'alchemist');
+    inDungeon     = (id === 'mine');
+    inShop        = (id === 'shop');
+    inLibrary     = (id === 'library');
+    inHome        = (id === 'home');
+    inAlchemist   = (id === 'alchemist');
+    inLushCaverns = (id === 'lush_caverns');
     // 'village' => all flags false (the town hub)
 }
 
@@ -723,6 +758,220 @@ function exitDungeon() {
 
 function spawnDungeonChest(x, y) {
     dungeonChest = { x, y, opened: false };
+}
+
+// ── L2: THE LUSH CAVERNS ──────────────────────────────────────────────────────
+function enterLushCaverns() {
+    const [spawnX, spawnY] = getLevel('lush_caverns').spawn;
+    enterLevel('lush_caverns', {
+        savePoint: { x: spawnX, y: spawnY, inDungeon: false, inShop: false, inLushCaverns: true },
+        onEnter: (lvl) => {
+            grappleAnim = null;
+            if (!lushCavernsCleared) {
+                // Spawn the cave-spider swarm across the arena.
+                lushEnemies = lvl.boss.spawn.map(([bx, by]) => new Enemy(bx, by, lvl.boss.type));
+            } else {
+                lushEnemies = [];
+            }
+            // Re-spawn the reward chest if the swarm was already cleared but the
+            // hook not yet taken (so a returning player can still claim it).
+            if (lushCavernsCleared && !lushHookAcquired) {
+                lushChest = { x: LUSH_REWARD_X, y: LUSH_REWARD_Y, opened: false };
+            } else {
+                lushChest = null;
+            }
+        },
+    });
+}
+
+// TEMPORARY (pilot): warp into L2 for testing. Equips a wooden sword if the
+// player is unarmed so the swarm is beatable in a self-contained test. Debug
+// builds only; the real L1→L2 connection is an orchestrator/human decision.
+function devWarpToLushCaverns() {
+    if (!inventory.has('wooden_sword') && !player.equippedItem) {
+        inventory.add(itemDefs.wooden_sword);
+    }
+    enterLushCaverns();
+}
+
+function exitLushCaverns() {
+    // Forward exit → nextLevel (deep_dark). The gate-out (must HOLD tripwire_hook)
+    // is enforced by the caller. If the destination level is not yet registered
+    // (L3 unbuilt during the pilot), fall back to the village and FLAG it as the
+    // orchestrator's call — see report. Once deep_dark exists this advances to it
+    // automatically with no further change here.
+    const next = getLevel('lush_caverns').nextLevel;
+    if (next && LEVELS[next]) {
+        enterLevel(next, {
+            savePoint: { x: LUSH_SPAWN_X, y: LUSH_SPAWN_Y, inLushCaverns: false },
+        });
+    } else {
+        inLushCaverns = false;
+        returnToVillage(5 * TILE_SIZE + TILE_SIZE / 2, 25 * TILE_SIZE + TILE_SIZE / 2);
+    }
+}
+
+// The grapple: when the player faces a HOOK_ANCHOR within reach and presses
+// action while holding the Tripwire Hook, they are yanked in a straight line up
+// to (and one tile past) the anchor — landing on the first walkable tile behind
+// it, crossing the otherwise-solid chasm/water in between.
+const GRAPPLE_RANGE_TILES = 7;
+
+function tryGrapple() {
+    if (grappleAnim) return false;
+    if (!inventory.has('tripwire_hook')) return false;
+
+    const col = Math.floor(player.x / TILE_SIZE);
+    const row = Math.floor(player.y / TILE_SIZE);
+    let dc = 0, dr = 0;
+    if (player.facing === 'up') dr = -1;
+    else if (player.facing === 'down') dr = 1;
+    else if (player.facing === 'left') dc = -1;
+    else if (player.facing === 'right') dc = 1;
+    else return false;
+
+    // Scan outward from the player in the facing direction for a HOOK_ANCHOR.
+    for (let step = 1; step <= GRAPPLE_RANGE_TILES; step++) {
+        const c = col + dc * step;
+        const r = row + dr * step;
+        if (r < 0 || r >= lushCavernsMap.length || c < 0 || c >= lushCavernsMap[0].length) break;
+        const tile = lushCavernsMap[r][c];
+        if (tile === T.HOOK_ANCHOR) {
+            // Land on the first WALKABLE tile past the anchor (continuing in the
+            // facing direction). Scan a couple of tiles in case the anchor sits
+            // against its own rim.
+            for (let past = 1; past <= 3; past++) {
+                const landC = c + dc * past;
+                const landR = r + dr * past;
+                const landTile = lushCavernsMap[landR]?.[landC];
+                if (landTile === undefined) break;
+                if (!tileProps[landTile]?.solid) {
+                    grappleAnim = {
+                        fromX: player.x, fromY: player.y,
+                        toX: landC * TILE_SIZE + TILE_SIZE / 2,
+                        toY: landR * TILE_SIZE + TILE_SIZE / 2,
+                        t: 0, dur: 12,
+                    };
+                    camera.shake(2, 10);
+                    return true;
+                }
+            }
+            return false;
+        }
+        // A solid non-anchor tile (wall) blocks the line of the hook.
+        if (tileProps[tile]?.solid && tile !== T.CHASM && tile !== T.CAVE_WATER) break;
+    }
+    return false;
+}
+
+function updateLushCaverns() {
+    updateTileAnimations();
+
+    // Grapple tween in progress: slide the player, ignore other input.
+    if (grappleAnim) {
+        grappleAnim.t++;
+        const p = Math.min(1, grappleAnim.t / grappleAnim.dur);
+        player.x = grappleAnim.fromX + (grappleAnim.toX - grappleAnim.fromX) * p;
+        player.y = grappleAnim.fromY + (grappleAnim.toY - grappleAnim.fromY) * p;
+        camera.follow(player.x, player.y, lushCavernsMap[0].length, lushCavernsMap.length);
+        camera.update();
+        if (p >= 1) grappleAnim = null;
+        return;
+    }
+
+    const solidEntities = [];
+    player.update(lushCavernsMap, solidEntities);
+
+    // Swarm update + combat
+    for (const enemy of lushEnemies) {
+        if (!enemy.active) continue;
+        enemy.update(player.x, player.y, lushCavernsMap);
+        if (enemy.canDamagePlayer(player.x, player.y)) {
+            const blocked = player.takeDamage(enemy.damage);
+            if (blocked) {
+                applyKnockback(enemy, player.x, player.y, 8, 10);
+                enemy.hurtTimer = 10;
+                enemy.state = 'hurt';
+                camera.shake(2, 8);
+            }
+        }
+    }
+
+    if (checkPlayerDeath()) return;
+
+    // Shield block
+    if (input.secondary && !player.blocking) {
+        player.startBlock();
+    }
+
+    // Reward chest interaction (grants the Tripwire Hook)
+    if (input.action && lushChest && !lushChest.opened) {
+        const dist = Math.abs(player.x - lushChest.x) + Math.abs(player.y - lushChest.y);
+        if (dist < 28) {
+            lushChest.opened = true;
+            lushHookAcquired = true;
+            inventory.add(itemDefs.tripwire_hook);
+            dialogue.start('', ['You found the Tripwire Hook!', 'Face a hook anchor across a gap and press A', 'to grapple across.']);
+            gameState.change(States.DIALOGUE);
+        }
+    }
+
+    // Grapple: action while facing a HOOK_ANCHOR (only when not opening a chest)
+    const nearChest = lushChest && !lushChest.opened &&
+        (Math.abs(player.x - lushChest.x) + Math.abs(player.y - lushChest.y)) < 28;
+    if (input.action && !nearChest) {
+        tryGrapple();
+    }
+
+    // Player attacks the swarm
+    if (input.action && player.equippedItem && player.equippedItem.type === 'weapon') {
+        if (player.attack()) {
+            const hitbox = player.getAttackHitbox();
+            if (hitbox) {
+                const hits = checkAttackHits(hitbox, lushEnemies);
+                for (const enemy of hits) {
+                    enemy.takeDamage(player.equippedItem.damage, player.x, player.y);
+                    if (enemy.hp <= 0) maybeDropHeart(enemy.x, enemy.y);
+                }
+            }
+        }
+    }
+
+    // Swarm cleared? (all spiders defeated) → spawn the reward chest once.
+    if (!lushCavernsCleared && lushEnemies.length > 0 && lushEnemies.every(e => !e.active)) {
+        lushCavernsCleared = true;
+        lushChest = { x: LUSH_REWARD_X, y: LUSH_REWARD_Y, opened: false };
+        dialogue.start('', ['The cave spiders are defeated!', 'A chest rests in the alcove to the north...']);
+        gameState.change(States.DIALOGUE);
+    }
+
+    updateArrows(lushCavernsMap);
+    if (player.bowReleased) { player.bowReleased = false; spawnArrow(); }
+    updateDrops();
+
+    camera.follow(player.x, player.y, lushCavernsMap[0].length, lushCavernsMap.length);
+    camera.update();
+
+    // Forward exit (top edge / LUSH_EXIT tile) — gated by holding the hook.
+    const playerRow = Math.floor(player.y / TILE_SIZE);
+    const playerCol = Math.floor(player.x / TILE_SIZE);
+    const onExit = playerRow <= 0 || lushCavernsMap[playerRow]?.[playerCol] === T.LUSH_EXIT;
+    if (onExit) {
+        if (inventory.has('tripwire_hook')) {
+            exitLushCaverns();
+        }
+        // Without the hook the player simply can't reach the exit (the chasm
+        // blocks the way), so no message is needed here.
+    }
+
+    if (input.inventory) {
+        invSelectedIndex = 0;
+        gameState.change(States.INVENTORY);
+    }
+    if (input.start) {
+        saveMenuOption = 0;
+        gameState.change(States.SAVE_MENU);
+    }
 }
 
 function spawnEnemyArrow(fromX, fromY, toX, toY, damage) {
@@ -1339,6 +1588,13 @@ function respawnPlayer() {
         inLibrary = savePoint.inLibrary || false;
         inHome = savePoint.inHome || false;
         inAlchemist = savePoint.inAlchemist || false;
+        inLushCaverns = savePoint.inLushCaverns || false;
+        grappleAnim = null;
+        if (inLushCaverns) {
+            lushEnemies = lushCavernsCleared
+                ? []
+                : LUSH_SWARM_SPAWNS.map(([bx, by]) => new Enemy(bx, by, 'cave_spider'));
+        }
         if (inDungeon && !dungeonCleared) {
             enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
             enemyArrows = [];
@@ -1353,7 +1609,7 @@ function respawnPlayer() {
         } else if (inShop) {
             shopEnemies = [];
         }
-        music.play(inDungeon ? 'dungeon' : ((inShop || inLibrary || inHome || inAlchemist) ? 'shop' : 'overworld'));
+        music.play((inDungeon || inLushCaverns) ? 'dungeon' : ((inShop || inLibrary || inHome || inAlchemist) ? 'shop' : 'overworld'));
         gameState.change(States.PLAYING);
     };
 }
@@ -1670,6 +1926,7 @@ function performSave(slot) {
         inLibrary,
         inHome,
         inAlchemist,
+        inLushCaverns,
         secretBushCollected,
         puzzleSolved: puzzle.solved,
         dungeonCleared,
@@ -1680,6 +1937,10 @@ function performSave(slot) {
         dungeonChestOpened: dungeonChest?.opened || false,
         dungeonChestX: dungeonChest?.x || null,
         dungeonChestY: dungeonChest?.y || null,
+        // L2 Lush Caverns
+        lushCavernsCleared,
+        lushHookAcquired,
+        lushChestOpened: lushChest?.opened || false,
     };
     saveSystem.save(slot, data);
     currentSaveSlot = slot;
@@ -1721,12 +1982,15 @@ function performRestore(slot) {
     inLibrary = data.inLibrary || false;
     inHome = data.inHome || false;
     inAlchemist = data.inAlchemist || false;
+    inLushCaverns = data.inLushCaverns || false;
     secretBushCollected = data.secretBushCollected || false;
     dungeonCleared = data.dungeonCleared || false;
     lockedRoomOpen = data.lockedRoomOpen || false;
     enderPearlPickedUp = data.enderPearlPickedUp || false;
     shopSkeletonFreed = data.shopSkeletonFreed || false;
     shopSkeletonDefeated = data.shopSkeletonDefeated || false;
+    lushCavernsCleared = data.lushCavernsCleared || false;
+    lushHookAcquired = data.lushHookAcquired || false;
 
     // Restore puzzle state
     if (data.puzzleSolved) {
@@ -1765,7 +2029,20 @@ function performRestore(slot) {
         shopEnemies = [];
     }
 
-    savePoint = { x: data.x, y: data.y, inDungeon: data.inDungeon, inShop: data.inShop };
+    // Restore L2 Lush Caverns state
+    grappleAnim = null;
+    if (inLushCaverns && !lushCavernsCleared) {
+        lushEnemies = LUSH_SWARM_SPAWNS.map(([bx, by]) => new Enemy(bx, by, 'cave_spider'));
+    } else {
+        lushEnemies = [];
+    }
+    if (lushCavernsCleared && !lushHookAcquired) {
+        lushChest = { x: LUSH_REWARD_X, y: LUSH_REWARD_Y, opened: data.lushChestOpened || false };
+    } else {
+        lushChest = null;
+    }
+
+    savePoint = { x: data.x, y: data.y, inDungeon: data.inDungeon, inShop: data.inShop, inLushCaverns: data.inLushCaverns };
     playerName = data.name;
     currentSaveSlot = slot;
 
@@ -2039,6 +2316,7 @@ function renderCharacterSelect() {
 const LEVEL_UPDATE = {
     village: updatePlaying,
     mine: updateDungeon,
+    lush_caverns: updateLushCaverns,
     shop: updateShopInterior,
     library: updateLibraryInterior,
     home: updateHomeInterior,
@@ -2048,6 +2326,7 @@ const LEVEL_UPDATE = {
 const LEVEL_RENDER = {
     village: renderTownScene,
     mine: renderDungeonScene,
+    lush_caverns: renderLushCavernsScene,
     shop: renderShopScene,
     library: renderLibraryScene,
     home: renderHomeScene,
@@ -2199,6 +2478,73 @@ function renderDungeonScene() {
     // Dungeon label
     ctx.fillStyle = '#888';
     drawSmallText(ctx, 'The Mine', VIRTUAL_WIDTH / 2 - 24, 2);
+}
+
+function renderLushCavernsScene() {
+    const camX = camera.getDrawX();
+    const camY = camera.getDrawY();
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    renderMap(ctx, lushCavernsMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
+
+    const entities = [];
+    entities.push({ y: player.y, render: () => player.render(ctx) });
+    for (const enemy of lushEnemies) {
+        if (enemy.active) entities.push({ y: enemy.y, render: () => enemy.render(ctx) });
+    }
+    for (const drop of drops) {
+        if (drop.active) entities.push({ y: drop.y, render: () => renderDrop(ctx, drop) });
+    }
+    for (const arrow of arrows) {
+        if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
+
+    // Reward chest (Tripwire Hook)
+    if (lushChest) {
+        entities.push({ y: lushChest.y + 8, render: () => {
+            drawChest(ctx, lushChest.x, lushChest.y, lushChest.opened);
+            if (!lushChest.opened) {
+                const dist = Math.abs(player.x - lushChest.x) + Math.abs(player.y - lushChest.y);
+                if (dist < 28) {
+                    ctx.fillStyle = '#E8A23D';
+                    drawSmallText(ctx, 'Press A to open', lushChest.x - 40, lushChest.y - 28);
+                }
+            }
+        }});
+    }
+
+    entities.sort((a, b) => a.y - b.y);
+    for (const ent of entities) ent.render();
+
+    // Grapple rope: draw a line from the player toward the anchor mid-tween.
+    if (grappleAnim) {
+        ctx.strokeStyle = '#CCC';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(player.x, player.y - 4);
+        ctx.lineTo(grappleAnim.toX, grappleAnim.toY - 4);
+        ctx.stroke();
+    }
+
+    // Grapple hint when standing on the near rim with the hook in hand.
+    if (inventory.has('tripwire_hook') && !grappleAnim) {
+        const pr = Math.floor(player.y / TILE_SIZE);
+        if (pr >= LUSH_ANCHOR_ROW + 1 && pr <= LUSH_ANCHOR_ROW + 4) {
+            const pc = Math.floor(player.x / TILE_SIZE);
+            if (pc >= LUSH_ANCHOR_COLS[0] - 2 && pc <= LUSH_ANCHOR_COLS[1] + 2) {
+                ctx.fillStyle = '#2EC4B6';
+                drawSmallText(ctx, 'Face up + A to grapple', player.x - 62, player.y - 30);
+            }
+        }
+    }
+
+    ctx.restore();
+    renderHUD(ctx, player);
+
+    ctx.fillStyle = '#6ECF92';
+    drawSmallText(ctx, 'The Lush Caverns', VIRTUAL_WIDTH / 2 - 48, 2);
 }
 
 function renderShopScene() {

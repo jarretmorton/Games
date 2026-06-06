@@ -36,6 +36,7 @@ import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y } from './shopMap.js';
 import { libraryMap, LIBRARY_SPAWN_X, LIBRARY_SPAWN_Y } from './libraryMap.js';
 import { homeMap, HOME_SPAWN_X, HOME_SPAWN_Y } from './homeMap.js';
 import { alchemistMap, ALCHEMIST_SPAWN_X, ALCHEMIST_SPAWN_Y } from './alchemistMap.js';
+import { lushCavernsMap, LUSH_SPAWN_X, LUSH_SPAWN_Y, LUSH_SWARM_SPAWNS } from './lushCavernsMap.js';
 
 export const LEVELS = {
     // ── L1: The Village & the Sealed Mine (existing) ────────────────────────
@@ -64,6 +65,23 @@ export const LEVELS = {
         grantsItem: 'ender_pearl',
         boss: { type: 'dungeon_skeleton', spawn: [ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y], clearedFlag: 'dungeonCleared' },
         nextLevel: 'lush_caverns', // L2 — appended by its author
+        music: 'dungeon',
+    },
+
+    // ── L2: The Lush Caverns (traversal beat — the grapple) ─────────────────
+    lush_caverns: {
+        id: 'lush_caverns',
+        title: 'The Lush Caverns',
+        kind: 'dungeon',
+        map: lushCavernsMap,
+        spawn: [LUSH_SPAWN_X, LUSH_SPAWN_Y],
+        gatingItemIn: null,              // open from L1 (per the chain table)
+        gatingItemOut: 'tripwire_hook',  // must HOLD the hook to take the forward exit
+        grantsItem: 'tripwire_hook',     // the Tripwire Hook (grapple) reward
+        // Cave-spider SWARM mini-boss: several fast, low-HP spiders. clearedFlag
+        // is set once the whole swarm is defeated.
+        boss: { type: 'cave_spider', spawn: LUSH_SWARM_SPAWNS, clearedFlag: 'lushCavernsCleared' },
+        nextLevel: 'deep_dark',
         music: 'dungeon',
     },
 
@@ -114,7 +132,8 @@ export function getLevel(id) {
  * The engine still tracks location with inDungeon/inShop/... booleans; this
  * derives the single currentLevelId the debug hook and save format report.
  */
-export function levelIdFromFlags({ inDungeon, inShop, inLibrary, inHome, inAlchemist } = {}) {
+export function levelIdFromFlags({ inDungeon, inShop, inLibrary, inHome, inAlchemist, inLushCaverns } = {}) {
+    if (inLushCaverns) return 'lush_caverns';
     if (inDungeon) return 'mine';
     if (inShop) return 'shop';
     if (inLibrary) return 'library';

@@ -77,6 +77,12 @@ export const itemDefs = {
         type: 'key_item',
         spriteId: 'ender_pearl',
     },
+    tripwire_hook: {
+        id: 'tripwire_hook',
+        name: 'Tripwire Hook',
+        type: 'key_item',
+        spriteId: 'tripwire_hook',
+    },
 };
 
 export const shopItems = [
