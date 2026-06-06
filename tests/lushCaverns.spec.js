@@ -165,6 +165,23 @@ test.describe('L2 — Lush Caverns', () => {
         expect(exited).toBe(true);
         expect(s.levelId).toBe('mine');                  // the boulder links L2 → mine
         expect(s.inventory).not.toContain('ender_pearl'); // G7: not spuriously added
+
+        // ── Permanence (regression): the doorway is two-way, forever ──────
+        // mine → L2 by stepping into the wall hole (the player lands beside it).
+        for (let i = 0; i < 12 && (await readState(page)).levelId !== 'lush_caverns'; i++) {
+            await hold(page, 'ArrowRight', 8); await release(page, 'ArrowRight');
+            await page.waitForTimeout(300);
+            await clearDialogue(page);
+        }
+        expect((await readState(page)).levelId).toBe('lush_caverns');
+        // L2 → mine again by walking back through the boulder doorway (col 1).
+        await centerRow(page, 2);
+        for (let i = 0; i < 16 && (await readState(page)).levelId !== 'mine'; i++) {
+            await hold(page, 'ArrowLeft', 8); await release(page, 'ArrowLeft');
+            await page.waitForTimeout(300);
+            await clearDialogue(page);
+        }
+        expect((await readState(page)).levelId).toBe('mine');
     });
 
     test('gate-out is honored — without the hook the chasm is uncrossable (G4)', async ({ page }) => {

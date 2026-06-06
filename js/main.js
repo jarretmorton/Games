@@ -802,9 +802,9 @@ function enterLushCaverns(spawnOverride = null) {
         savePoint: { x: sx, y: sy, inDungeon: false, inShop: false, inLushCaverns: true },
         onEnter: (lvl) => {
             grappleAnim = null;
-            // Keep the boulder gone / mine-hole open if it was already shoved.
+            // Keep the boulder-doorway + mine-hole open if it was already shoved.
             if (lushRockPushed) {
-                lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MOSS_FLOOR;
+                lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MINE_HOLE;
                 dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.MINE_HOLE;
             }
             if (!lushCavernsCleared) {
@@ -844,16 +844,19 @@ function devWarpToLushCaverns() {
 // REQUIRES the hook (it sits across the Great Chasm), so the gate is preserved.
 function pushLushRock() {
     lushRockPushed = true;
-    lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MOSS_FLOOR;
+    // The boulder's spot becomes a PERMANENT walk-through doorway (MINE_HOLE), so
+    // the L2<->mine link is two-way forever: step on it to travel to the mine.
+    lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MINE_HOLE;
     dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.MINE_HOLE;
     camera.shake(3, 20);
-    enterDungeonViaHole();
+    enterDungeonViaHole(['You shove the mossy boulder aside!', 'It crashes through into the old mine — a passage opens!']);
 }
 
-// Drop into the mine at the freshly-opened hole. By this point the mine skeleton
-// is already defeated (you needed the Ender Pearl to trigger this path), so no
-// enemy respawns; the guard mirrors enterDungeon just in case.
-function enterDungeonViaHole() {
+// Travel into the mine at the hole. By this point the mine skeleton is already
+// defeated (you needed the Ender Pearl to reach here); the guard mirrors
+// enterDungeon just in case. `lines` shows a one-off dialogue (the first shove);
+// walking back through the doorway later is silent.
+function enterDungeonViaHole(lines = null) {
     enterLevel('mine', {
         spawn: [MINE_HOLE_X, MINE_HOLE_Y],
         savePoint: { x: MINE_HOLE_X, y: MINE_HOLE_Y, inDungeon: true, inShop: false },
@@ -861,8 +864,7 @@ function enterDungeonViaHole() {
             dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.MINE_HOLE;
             enemies = dungeonCleared ? [] : [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
             enemyArrows = [];
-            dialogue.start('', ['You tumble through the hole into the old mine!', 'The way out lies to the south.']);
-            gameState.change(States.DIALOGUE);
+            if (lines) { dialogue.start('', lines); gameState.change(States.DIALOGUE); }
         },
     });
 }
@@ -1035,7 +1037,15 @@ function updateLushCaverns() {
     camera.follow(player.x, player.y, lushCavernsMap[0].length, lushCavernsMap.length);
     camera.update();
 
-    // (The exit is the boulder on the north shelf — handled above via pushLushRock.)
+    // Permanent doorway back to the mine: once the boulder is shoved its spot is
+    // a MINE_HOLE passage — step onto it to travel to the mine (two-way forever).
+    if (lushRockPushed && !transition.active) {
+        const pc = Math.floor(player.x / TILE_SIZE);
+        const pr = Math.floor(player.y / TILE_SIZE);
+        if (lushCavernsMap[pr]?.[pc] === T.MINE_HOLE) {
+            enterDungeonViaHole();
+        }
+    }
 
     if (input.inventory) {
         invSelectedIndex = 0;
@@ -2097,7 +2107,7 @@ function performRestore(slot) {
 
     // Restore L2 mutated tiles (boulder shoved → mine hole open; secret taken)
     if (data.lushRockPushed) {
-        lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MOSS_FLOOR;
+        lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MINE_HOLE;
         dungeonMap[MINE_HOLE_ROW][MINE_HOLE_COL] = T.MINE_HOLE;
     }
     if (data.lushSecretFound) {
