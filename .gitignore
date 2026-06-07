@@ -1,3 +1,6 @@
 node_modules/
 test-results/
 playwright-report/
+
+# Agent worktrees (created by isolation: worktree)
+.claude/worktrees/

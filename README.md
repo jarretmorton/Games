@@ -84,6 +84,12 @@ npm test                          # runs the Playwright playtests
 
 The tests boot `zcraft.html?debug=1`, fire synthetic input through `window.__zcraft`, and assert against game state (level completability, item gating, no soft-locks). See [tests/](tests/) and the acceptance criteria in [docs/LEVEL_SPEC.md](docs/LEVEL_SPEC.md).
 
+Each run starts and tears down its own server (no stale-server reuse). To run several checkouts in parallel (e.g. multiple level-author worktrees), give each a distinct port:
+
+```bash
+ZCRAFT_PORT=8131 npm test
+```
+
 ---
 
 ## Development & design docs

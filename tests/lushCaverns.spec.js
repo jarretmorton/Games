@@ -14,36 +14,12 @@
 // ?debug=1), which uses the same well-drop spawn as the real well entrance.
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, expect } from '@playwright/test';
+import {
+    bootDebug, readState, tap, hold, release,
+    reachVillage, clearDialogue, centerColumn, centerRow,
+} from './helpers.js';
 
-async function bootDebug(page) {
-    await page.goto('/zcraft.html?debug=1');
-    await page.waitForFunction(() => !!window.__zcraft, null, { timeout: 10_000 });
-}
-function readState(page) {
-    return page.evaluate(() => window.__zcraft.state);
-}
-async function tap(page, code, frames = 4) {
-    await page.evaluate((c) => window.__zcraft.input(c, true), code);
-    await page.waitForTimeout(frames * 16);
-    await page.evaluate((c) => window.__zcraft.input(c, false), code);
-    await page.waitForTimeout(2 * 16);
-}
-async function hold(page, code, frames) {
-    await page.evaluate((c) => window.__zcraft.input(c, true), code);
-    await page.waitForTimeout(frames * 16);
-}
-async function release(page, code) {
-    await page.evaluate((c) => window.__zcraft.input(c, false), code);
-    await page.waitForTimeout(2 * 16);
-}
-async function reachVillage(page) {
-    await tap(page, 'Enter');
-    await tap(page, 'Enter');
-    await tap(page, 'KeyA');
-    await tap(page, 'Enter');
-    await tap(page, 'Enter');
-    await expect.poll(() => readState(page).then(s => s.levelId)).toBe('village');
-}
+/** L2-specific: warp straight into the Lush Caverns via the dev entrance. */
 async function warpToLush(page) {
     for (let i = 0; i < 5; i++) {
         await tap(page, 'KeyL', 2);
@@ -53,32 +29,7 @@ async function warpToLush(page) {
     }
     throw new Error('failed to warp into lush_caverns');
 }
-async function clearDialogue(page) {
-    // Advance until we're back in PLAYING — dialogues vary in line count and the
-    // typewriter reveal can need an extra press per line.
-    for (let i = 0; i < 16; i++) {
-        if ((await readState(page)).gameState !== 'DIALOGUE') return;
-        await tap(page, 'Space', 2);
-    }
-}
-async function centerColumn(page, targetCol) {
-    for (let i = 0; i < 48; i++) {
-        const col = Math.round((await readState(page)).player.x / 32);
-        if (col === targetCol) return;
-        const dir = col < targetCol ? 'ArrowRight' : 'ArrowLeft';
-        await hold(page, dir, 8);
-        await release(page, dir);
-    }
-}
-async function centerRow(page, targetRow) {
-    for (let i = 0; i < 48; i++) {
-        const row = Math.round((await readState(page)).player.y / 32);
-        if (row === targetRow) return;
-        const dir = row < targetRow ? 'ArrowDown' : 'ArrowUp';
-        await hold(page, dir, 8);
-        await release(page, dir);
-    }
-}
+
 /** Clear the cave-spider swarm by climbing into the arena and sweeping. */
 async function clearSwarm(page) {
     const dirs = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
