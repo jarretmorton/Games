@@ -6,6 +6,12 @@ It's a vanilla **ES-module browser game**: no framework, no build step, no bundl
 
 > Current version: **1.3.0** (see the `VERSION` export in [js/main.js](js/main.js)).
 
+<img width="1522" height="1337" alt="image" src="https://github.com/user-attachments/assets/2185b1bc-fa52-4343-b6af-023e4c1c7994" style="width: 50%;"/>
+<br><br>
+<img width="1523" height="1343" alt="image" src="https://github.com/user-attachments/assets/3dab0511-5036-47b8-953a-aa14bb1e3791" style="width: 50%;"/>
+<br><br>
+<img width="1527" height="1340" alt="image" src="https://github.com/user-attachments/assets/0bbbf6f9-af6d-41d0-a5dd-93e9868da965" /style="width: 50%;"/>
+
 ---
 
 ## Play locally
