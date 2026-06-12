@@ -113,8 +113,7 @@ export const LEVELS = {
         boss: null, nextLevel: 'village', music: 'shop',
     },
 
-    // ── L2–L5: appended by level authors (do NOT collide tile IDs, §6) ──────
-    // lush_caverns:    { ... gatingItemOut: 'tripwire_hook',   nextLevel: 'deep_dark' }
+    // ── L3–L5: to be appended by level authors (do NOT collide tile IDs, §6) ─
     // deep_dark:       { ... gatingItemIn:  'tripwire_hook',   gatingItemOut: 'flint_and_steel', nextLevel: 'nether_fortress' }
     // nether_fortress: { ... gatingItemIn:  'flint_and_steel', gatingItemOut: 'eye_of_ender',    nextLevel: 'the_end' }
     // the_end:         { ... gatingItemIn:  'eye_of_ender' }   // finale; Ender Pearl required
