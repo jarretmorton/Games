@@ -1,7 +1,9 @@
 # ZCraft — Multi-Agent Level Expansion Plan (1 → 5 Levels)
 
-**Repo:** `github.com/jarretmorton/Games` · **Game:** ZCraft (Zelda × Minecraft) · **Current:** `VERSION 1.1.4`
+**Repo:** `github.com/jarretmorton/Games` · **Game:** ZCraft (Zelda × Minecraft) · **Written against:** `VERSION 1.1.4`
 **Purpose:** A hands-on multi-agent workflow exercise — orchestrator-workers + evaluator-optimizer applied to a creative + QC domain, with deliberately minimal, high-leverage human input.
+
+> **Status update (`VERSION 1.3.1`):** Gates 1–2 passed and Phase 0 shipped — the README, [WORLD_BIBLE.md](WORLD_BIBLE.md), [LEVEL_SPEC.md](LEVEL_SPEC.md), the `LEVELS` registry (`js/world/levels.js`), the `?debug=1` hook (`js/engine/debugHook.js`), the Playwright harness (`tests/`), and the `.claude/agents/` definitions. **L2 (Lush Caverns) is authored, play-tested, and merged** (Gate 3); L3–L5 remain to be built per Phases 2–4. Notes for readers of the original text below: §0 describes the repo *as it was at `1.1.4`* and is kept as the historical baseline (`main.js` is now ~3,300 lines and the registry exists); the planned `docs/ARCHITECTURE.md` was folded into the README's "Project structure" section + LEVEL_SPEC; `Plan for a game.docx` became the plain-text `Initial_prompt`.
 
 ---
 
