@@ -40,6 +40,11 @@ export class Enemy {
             // and doesn't idle-wander out of the arena (enemies don't collide
             // with walls). Keeps the swarm fight readable and clearable.
             this.detectionRadius = 420;
+            // Ranged web attack (freezes the player for 2s). Random initial
+            // stagger so the 5 swarm members don't all spit a web on the same
+            // frame. main.js reads webShootSignal and spawns the web projectile.
+            this.webCooldown = 60 + Math.floor(Math.random() * 120);
+            this.webShootSignal = false;
         }
 
         // State
@@ -160,6 +165,17 @@ export class Enemy {
                     this.facing = dy > 0 ? 'down' : 'up';
                 }
             } else {
+                // Cave spider: in addition to chasing/meleeing, periodically spit
+                // a web at the player from range. The web freezes on contact (the
+                // freeze + visuals live in main.js / player.js).
+                if (this.type === 'cave_spider') {
+                    if (this.webCooldown > 0) this.webCooldown--;
+                    if (this.webCooldown <= 0 && dist > 28 && dist < 260) {
+                        this.webShootSignal = true;
+                        this.webCooldown = 150 + Math.floor(Math.random() * 90);
+                    }
+                }
+
                 // Default: chase and melee attack
                 if (dist < 20 && this.attackCooldown <= 0) {
                     // Attack
