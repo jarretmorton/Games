@@ -1042,6 +1042,122 @@ export function drawCaveSpider(ctx, x, y, animFrame, scale = 2) {
     ctx.fillRect(cx + 1, cy - 6, 2, 2);
 }
 
+// ── SPIDER WEB ATTACK VISUALS ──────────────────────────────────────────────
+// A small spinning web ball in flight (the projectile the spider spits).
+export function drawWebProjectile(ctx, x, y, frame) {
+    const cx = Math.round(x);
+    const cy = Math.round(y);
+    const r = 5;
+    // Slow spin via the frame counter.
+    const rot = (frame % 60) / 60 * Math.PI * 2;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(235, 235, 245, 0.85)';
+    ctx.lineWidth = 1;
+    // Radial spokes
+    for (let i = 0; i < 6; i++) {
+        const a = rot + i * (Math.PI / 3);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        ctx.stroke();
+    }
+    // Concentric web rings
+    ctx.strokeStyle = 'rgba(210, 210, 225, 0.7)';
+    for (const rr of [r * 0.55, r]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    // Bright sticky core
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(cx - 1, cy - 1, 2, 2);
+    ctx.restore();
+}
+
+// The web wrapping the frozen player. alpha (1→0) fades it out over the freeze.
+export function drawWebOnPlayer(ctx, x, y, alpha) {
+    const cx = Math.round(x);
+    const cy = Math.round(y - 6);
+    const r = 13;
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, 0.85 * alpha + 0.15));
+    ctx.strokeStyle = '#EDEDF5';
+    ctx.lineWidth = 1;
+    // Radial spokes anchoring the player
+    for (let i = 0; i < 8; i++) {
+        const a = i * (Math.PI / 4);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        ctx.stroke();
+    }
+    // Concentric strands
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    for (const rr of [r * 0.4, r * 0.7, r]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    // A few sticky flecks
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(cx - 1, cy - r + 1, 2, 2);
+    ctx.fillRect(cx + r - 3, cy - 1, 2, 2);
+    ctx.fillRect(cx - r + 1, cy + 2, 2, 2);
+    ctx.restore();
+}
+
+// A flat web splat left where a missed web stuck to a wall/floor. Fades out.
+export function drawWebSplat(ctx, x, y, alpha) {
+    const cx = Math.round(x);
+    const cy = Math.round(y);
+    const r = 6;
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, 0.6 * alpha));
+    ctx.strokeStyle = '#E0E0EC';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 6; i++) {
+        const a = i * (Math.PI / 3);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.6);
+        ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+}
+
+// ── SECRET POTATO PET ("Spud") ──────────────────────────────────────────────
+// A small tan potato companion with eyes; bobs gently via the frame counter.
+export function drawPotatoPet(ctx, x, y, frame) {
+    const bob = Math.sin((frame % 60) / 60 * Math.PI * 2) * 1;
+    const cx = Math.round(x);
+    const cy = Math.round(y - 4 + bob);
+
+    // Body (lumpy potato — overlapping blocks)
+    ctx.fillStyle = '#C8A06A';
+    ctx.fillRect(cx - 6, cy - 4, 12, 9);
+    ctx.fillRect(cx - 5, cy - 5, 10, 11);
+    ctx.fillRect(cx - 7, cy - 2, 14, 5);
+    // Shading
+    ctx.fillStyle = '#A87E48';
+    ctx.fillRect(cx - 6, cy + 3, 12, 2);
+    // Potato "eyes/spots"
+    ctx.fillStyle = '#8A6230';
+    ctx.fillRect(cx + 3, cy - 3, 1, 1);
+    ctx.fillRect(cx - 4, cy + 1, 1, 1);
+    // Eyes (face)
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(cx - 3, cy - 2, 2, 2);
+    ctx.fillRect(cx + 1, cy - 2, 2, 2);
+    // Smile
+    ctx.fillRect(cx - 1, cy + 1, 2, 1);
+}
+
 // Draw skeleton trapped (with chains/cage bars)
 export function drawTrappedSkeleton(ctx, x, y, animFrame) {
     // Draw cage bars first (behind skeleton)

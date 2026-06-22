@@ -9,10 +9,10 @@ import { shopMap, SHOP_SPAWN_X, SHOP_SPAWN_Y, SHOPKEEPER_X, SHOPKEEPER_Y, SKELET
 import { libraryMap, LIBRARY_SPAWN_X, LIBRARY_SPAWN_Y, LIBRARY_NPC_X, LIBRARY_NPC_Y, libraryBreakablePositions } from './world/libraryMap.js';
 import { homeMap, HOME_SPAWN_X, HOME_SPAWN_Y, HOME_NPC_X, HOME_NPC_Y, homeBreakablePositions } from './world/homeMap.js';
 import { alchemistMap, ALCHEMIST_SPAWN_X, ALCHEMIST_SPAWN_Y, alchemistBreakablePositions } from './world/alchemistMap.js';
-import { lushCavernsMap, LUSH_SWARM_SPAWNS, LUSH_REWARD_X, LUSH_REWARD_Y, LUSH_ANCHOR_ROW, LUSH_ANCHOR_COLS, LUSH_WELL_DROP_X, LUSH_WELL_DROP_Y, LUSH_MINE_ENTRY_X, LUSH_MINE_ENTRY_Y, LUSH_ROCK_ROW, LUSH_ROCK_COL, LUSH_SECRET_ROW, LUSH_SECRET_COL } from './world/lushCavernsMap.js';
+import { lushCavernsMap, LUSH_SWARM_SPAWNS, LUSH_REWARD_X, LUSH_REWARD_Y, LUSH_ANCHOR_ROW, LUSH_ANCHOR_COLS, LUSH_WELL_DROP_X, LUSH_WELL_DROP_Y, LUSH_MINE_ENTRY_X, LUSH_MINE_ENTRY_Y, LUSH_ROCK_ROW, LUSH_ROCK_COL, LUSH_SECRET_ROW, LUSH_SECRET_COL, LUSH_PET_X, LUSH_PET_Y } from './world/lushCavernsMap.js';
 import { player } from './entities/player.js';
 import { characters } from './data/characters.js';
-import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton, drawChest } from './rendering/sprites.js';
+import { drawCharacter, drawItem, drawArrow, drawTrappedSkeleton, drawSkeleton, drawChest, drawWebProjectile, drawWebSplat, drawPotatoPet } from './rendering/sprites.js';
 import { createNPCs } from './entities/npc.js';
 import { npcData, shopkeeperData, libraryNpcData, homeNpcData, alchemistNpcData, wellKeeperData } from './data/npcs.js';
 import { dialogue } from './rendering/dialogue.js';
@@ -31,7 +31,7 @@ import { saveSystem } from './systems/saveSystem.js';
 import { LEVELS, getLevel, levelIdFromFlags } from './world/levels.js';
 import { installDebugHook, debugEnabled } from './engine/debugHook.js';
 
-export const VERSION = '1.3.1';
+export const VERSION = '1.4.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -100,6 +100,9 @@ let lushRockPushed = false;           // exit boulder shoved → permanent mine 
 let lushSecretFound = false;          // hidden glow-berry stash collected (once)
 let lushChest = null;                 // reward chest (spawns after the swarm dies)
 let grappleAnim = null;               // active grapple tween (see updateLushCaverns)
+let lushWebs = [];                    // spider web projectiles + fading splats
+let lushPetFound = false;             // secret potato pet ("Spud") discovered
+let lushPet = null;                   // { x, y, trail: [] } — Lush-scoped follower
 let wellKeeperAdded = false;          // the post-pearl villager has been placed
 
 // Save point for respawning after death
@@ -219,6 +222,7 @@ function currentFlags() {
         lushHookAcquired,
         lushRockPushed,
         lushSecretFound,
+        lushPetFound,
     };
 }
 
@@ -230,7 +234,7 @@ function init() {
         getState: () => ({
             levelId: currentLevelId(),
             gameState: gameState.current,
-            player: { x: player.x, y: player.y, hp: player.health },
+            player: { x: player.x, y: player.y, hp: player.health, frozen: player.freezeTimer > 0 },
             inventory: inventory.items.map(i => i.id),
             flags: currentFlags(),
         }),
@@ -306,6 +310,9 @@ function startGame() {
     lushSecretFound = false;
     lushChest = null;
     grappleAnim = null;
+    lushWebs = [];
+    lushPetFound = false;
+    lushPet = null;
     wellKeeperAdded = false;
     // Reset the L2 exit boulder + mine-hole tiles in case a previous game opened them
     lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.LUSH_ROCK;
@@ -808,6 +815,10 @@ function enterLushCaverns(spawnOverride = null) {
         savePoint: { x: sx, y: sy, inDungeon: false, inShop: false, inLushCaverns: true },
         onEnter: (lvl) => {
             grappleAnim = null;
+            lushWebs = [];
+            // The secret potato pet lives only in the Lush Caverns; (re)place it
+            // at its hidden spot, or trailing the player if already found.
+            lushPet = { x: LUSH_PET_X, y: LUSH_PET_Y, trail: [] };
             // Keep the boulder-doorway + mine-hole open if it was already shoved.
             if (lushRockPushed) {
                 lushCavernsMap[LUSH_ROCK_ROW][LUSH_ROCK_COL] = T.MINE_HOLE;
@@ -950,6 +961,11 @@ function updateLushCaverns() {
     for (const enemy of lushEnemies) {
         if (!enemy.active) continue;
         enemy.update(player.x, player.y, lushCavernsMap);
+        // Spider spits a web at the player → ranged freeze projectile.
+        if (enemy.webShootSignal) {
+            enemy.webShootSignal = false;
+            spawnWeb(enemy.x, enemy.y, player.x, player.y);
+        }
         if (enemy.canDamagePlayer(player.x, player.y)) {
             const blocked = player.takeDamage(enemy.damage);
             if (blocked) {
@@ -960,6 +976,8 @@ function updateLushCaverns() {
             }
         }
     }
+
+    updateLushWebs();
 
     if (checkPlayerDeath()) return;
 
@@ -1039,6 +1057,7 @@ function updateLushCaverns() {
     updateArrows(lushCavernsMap);
     if (player.bowReleased) { player.bowReleased = false; spawnArrow(); }
     updateDrops();
+    updateLushPet();
 
     camera.follow(player.x, player.y, lushCavernsMap[0].length, lushCavernsMap.length);
     camera.update();
@@ -1112,6 +1131,86 @@ function updateEnemyArrows() {
         }
     }
     enemyArrows = enemyArrows.filter(a => a.active);
+}
+
+// ── L2 SPIDER WEBS ─────────────────────────────────────────────────────────
+// A web projectile (Lush-scoped). Slower than an arrow so the shot reads
+// clearly. On hitting the player it freezes them for 2s; webs that miss stick
+// to a wall/floor as a fading splat. `frame` drives the spinning animation.
+function spawnWeb(fromX, fromY, toX, toY) {
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const speed = 1.6;
+    lushWebs.push({
+        x: fromX,
+        y: fromY,
+        vx: (dx / len) * speed,
+        vy: (dy / len) * speed,
+        flying: true,
+        life: 140,
+        fadeTimer: 0,
+        frame: 0,
+    });
+}
+
+function updateLushWebs() {
+    for (const web of lushWebs) {
+        web.frame++;
+
+        // Stuck splat: just fade out where it landed.
+        if (!web.flying) {
+            web.fadeTimer--;
+            continue;
+        }
+
+        web.x += web.vx;
+        web.y += web.vy;
+        web.life--;
+
+        // Out of bounds, solid tile, or expired → stick as a fading splat.
+        const col = Math.floor(web.x / TILE_SIZE);
+        const row = Math.floor(web.y / TILE_SIZE);
+        const oob = row < 0 || row >= lushCavernsMap.length || col < 0 || col >= lushCavernsMap[0].length;
+        if (web.life <= 0 || oob || (!oob && tileProps[lushCavernsMap[row][col]]?.solid)) {
+            web.flying = false;
+            web.fadeTimer = 120; // fade over ~2s
+            continue;
+        }
+
+        // Hit the player → freeze for 2 seconds (120 frames).
+        const dist = Math.abs(player.x - web.x) + Math.abs(player.y - web.y);
+        if (dist < 14) {
+            if (player.freeze(120)) camera.shake(2, 8);
+            web.flying = false;
+            web.fadeTimer = 30; // brief on-impact splat (the player overlay carries it)
+        }
+    }
+    lushWebs = lushWebs.filter(w => w.flying || w.fadeTimer > 0);
+}
+
+// Secret potato pet ("Spud"): a Lush-scoped follower. Walk near it to find it,
+// after which it trails the player using a breadcrumb buffer.
+function updateLushPet() {
+    if (!lushPet) return;
+    lushPet.frame = (lushPet.frame || 0) + 1;
+
+    if (!lushPetFound) {
+        const dist = Math.abs(player.x - lushPet.x) + Math.abs(player.y - lushPet.y);
+        if (dist < 20) {
+            lushPetFound = true;
+            dialogue.start('', ['You found Spud, the secret potato pet!', 'Spud will follow you around the caverns!']);
+            gameState.change(States.DIALOGUE);
+        }
+        return;
+    }
+
+    // Trail behind the player: sample a position ~16 frames back.
+    lushPet.trail.push({ x: player.x, y: player.y });
+    if (lushPet.trail.length > 17) lushPet.trail.shift();
+    const target = lushPet.trail[0];
+    lushPet.x = target.x;
+    lushPet.y = target.y;
 }
 
 function enterShop() {
@@ -1679,10 +1778,16 @@ function respawnPlayer() {
         inAlchemist = savePoint.inAlchemist || false;
         inLushCaverns = savePoint.inLushCaverns || false;
         grappleAnim = null;
+        player.freezeTimer = 0;
+        lushWebs = [];
         if (inLushCaverns) {
             lushEnemies = lushCavernsCleared
                 ? []
                 : LUSH_SWARM_SPAWNS.map(([bx, by]) => new Enemy(bx, by, 'cave_spider'));
+            // Re-anchor the pet: trailing the player if found, else at its hideout.
+            lushPet = lushPetFound
+                ? { x: savePoint.x, y: savePoint.y, trail: [] }
+                : { x: LUSH_PET_X, y: LUSH_PET_Y, trail: [] };
         }
         if (inDungeon && !dungeonCleared) {
             enemies = [new Enemy(ZOMBIE_SPAWN_X, ZOMBIE_SPAWN_Y, 'dungeon_skeleton')];
@@ -2043,6 +2148,7 @@ function performSave(slot) {
         lushHookAcquired,
         lushRockPushed,
         lushSecretFound,
+        lushPetFound,
         lushChestOpened: lushChest?.opened || false,
     };
     saveSystem.save(slot, data);
@@ -2096,6 +2202,7 @@ function performRestore(slot) {
     lushHookAcquired = data.lushHookAcquired || false;
     lushRockPushed = data.lushRockPushed || false;
     lushSecretFound = data.lushSecretFound || false;
+    lushPetFound = data.lushPetFound || false;
 
     // Restore puzzle state
     if (data.puzzleSolved) {
@@ -2147,6 +2254,8 @@ function performRestore(slot) {
 
     // Restore L2 Lush Caverns state
     grappleAnim = null;
+    lushWebs = [];
+    lushPet = inLushCaverns ? { x: LUSH_PET_X, y: LUSH_PET_Y, trail: [] } : null;
     if (inLushCaverns && !lushCavernsCleared) {
         lushEnemies = LUSH_SWARM_SPAWNS.map(([bx, by]) => new Enemy(bx, by, 'cave_spider'));
     } else {
@@ -2605,6 +2714,11 @@ function renderLushCavernsScene() {
 
     renderMap(ctx, lushCavernsMap, camX, camY, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, 0);
 
+    // Stuck web splats sit on the ground, under all entities.
+    for (const web of lushWebs) {
+        if (!web.flying) drawWebSplat(ctx, web.x, web.y, web.fadeTimer / 120);
+    }
+
     const entities = [];
     entities.push({ y: player.y, render: () => player.render(ctx) });
     for (const enemy of lushEnemies) {
@@ -2615,6 +2729,14 @@ function renderLushCavernsScene() {
     }
     for (const arrow of arrows) {
         if (arrow.active) entities.push({ y: arrow.y, render: () => drawArrow(ctx, arrow.x, arrow.y, arrow.facing) });
+    }
+    // Flying web projectiles (spinning balls), y-sorted with everything else.
+    for (const web of lushWebs) {
+        if (web.flying) entities.push({ y: web.y, render: () => drawWebProjectile(ctx, web.x, web.y, web.frame) });
+    }
+    // Secret potato pet (at its hidden spot until found, then trailing the player).
+    if (lushPet) {
+        entities.push({ y: lushPet.y, render: () => drawPotatoPet(ctx, lushPet.x, lushPet.y, lushPet.frame || 0) });
     }
 
     // Reward chest (Tripwire Hook)
