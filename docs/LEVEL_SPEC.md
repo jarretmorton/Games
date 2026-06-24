@@ -1,10 +1,10 @@
 # ZCraft — Level Spec
 
-**Status:** Draft for Human Gate 2 review · the *contract every new level file must satisfy* · grounded against the code at `VERSION 1.1.4`.
+**Status:** Live · the *contract every new level file must satisfy* · grounded against the code at `VERSION 1.3.0` (Phase-0 refactor landed; L2 Lush Caverns merged).
 
-This is the machine-side companion to [WORLD_BIBLE.md](WORLD_BIBLE.md) (the creative side). It defines: the real map format a level must produce (§1–§3), the registry/gating fields the refactor will add (§4), the per-level acceptance criteria a Playwright test will assert (§5), and the **shared tile-ID namespace authors must not reuse** (§6).
+This is the machine-side companion to [WORLD_BIBLE.md](WORLD_BIBLE.md) (the creative side). It defines: the real map format a level must produce (§1–§3), the registry/gating fields (§4), the per-level acceptance criteria the Playwright tests assert (§5), and the **shared tile-ID namespace authors must not reuse** (§6).
 
-> ⚠️ **Two-phase reality.** §1–§3 and §6 describe the code **as it exists today** — authors can rely on them now. §4 and §5 describe the **post-refactor** API (the `LEVELS` registry, the `window.__zcraft` debug hook, `gatingItemIn/Out`). Those do not exist at `1.1.4`; they are the contract the Phase-0 refactor must deliver, and the acceptance scripts run against them. See WORLD_BIBLE §7 for the gap. Gate 2 should approve this spec and the refactor together.
+> ℹ️ **All sections now describe shipped code.** The Phase-0 refactor delivered the `LEVELS` registry ([js/world/levels.js](../js/world/levels.js)) and the `window.__zcraft` debug hook ([js/engine/debugHook.js](../js/engine/debugHook.js)), and the acceptance scripts in [tests/](../tests/) run against them. One caveat remains in §4: the `gatingItemIn` / `gatingItemOut` / `grantsItem` / `nextLevel` fields are recorded in the registry but **not yet read by the engine** — gating is still enforced by per-level hardcoded checks. See the note in §4.
 
 ---
 
@@ -24,7 +24,7 @@ A level may also need entries in the **shared registries** (§6 / WORLD_BIBLE §
 - **Solidity** comes from `tileProps[id].solid` (`tilemap.js` `isSolidTile`). `WATER` is solid (a barrier, not swimmable). **A tile ID with no `tileProps` entry is treated as solid** and renders nothing — an invisible wall (see §6).
 - **Overhead tiles** (`props.overhead: true`, e.g. tree canopy, roofs) render on a separate layer *above* the player (`renderMap` layer 2). Use for anything the player walks under.
 - **Interactive tiles** carry `props.interact: '<name>'` (e.g. `'shop'`, `'lectern'`, `'tablet'`). The handler is a hardcoded branch in `main.js` keyed off that string — a new interact type means new `main.js` logic, which is an integration-surface change to flag, not a pure level-local addition.
-- **Entrance / exit conventions in use today:** entering a sub-area is triggered by stepping on a tile (`DUNGEON_ENTRANCE`, or an `interact` door); exiting the dungeon is triggered by walking off the bottom edge — `playerRow >= map.length - 1` (`main.js:614`). New levels should pick one of these two patterns, not invent a third, unless the refactor generalizes transitions.
+- **Entrance / exit conventions in use today:** entering a sub-area is triggered by stepping on a tile (`DUNGEON_ENTRANCE`, or an `interact` door); exiting the dungeon is triggered by walking off the bottom edge — `playerRow >= map.length - 1` (see `exitDungeon` in [js/main.js](../js/main.js)). New levels should pick one of these two patterns, not invent a third.
 
 ---
 
@@ -72,43 +72,50 @@ export const <LEVEL>_BOSS_Y = 11 * 32;
 
 ---
 
-## 4. Registry & gating fields (post-refactor contract)
+## 4. Registry & gating fields
 
-After Phase 0, each level appends one entry to `js/world/levels.js`. This is the schema that entry must satisfy. *(Field names are the proposed contract — Gate 2 finalizes them; the author and refactor agents must agree before parallel authoring starts.)*
+Each level appends one entry to [js/world/levels.js](../js/world/levels.js). This is the schema that entry must satisfy. The registry is pure data + pure helpers; the engine verbs that consume it (`enterLevel`, the transition, save/load) live in [js/main.js](../js/main.js).
 
 ```js
 // js/world/levels.js  — authors APPEND one entry; integrator de-conflicts
 export const LEVELS = {
-  village:    { /* L1, existing — wraps townMap + interiors */ },
-  mine:       { /* L1 dungeon, existing — wraps dungeonMap */ },
+  village:    { /* L1 hub — wraps townMap */ },
+  mine:       { /* L1 dungeon — wraps dungeonMap */ },
 
   lush_caverns: {
     id:            'lush_caverns',         // unique, snake_case — also the state.levelId value
     title:         'The Lush Caverns',
+    kind:          'dungeon',              // 'hub' | 'interior' | 'dungeon'
     map:           lushCavernsMap,          // the 2-D array from §3
-    spawn:         [LUSH_SPAWN_X, LUSH_SPAWN_Y],  // pixels
-    gatingItemIn:  'tripwire_hook'??null,   // item REQUIRED to ENTER (null = open). L2 entrance is open from L1.
+    spawn:         [LUSH_WELL_DROP_X, LUSH_WELL_DROP_Y],  // pixels (you fall in from the town well)
+    gatingItemIn:  null,                    // item REQUIRED to ENTER (null = open). L2 is open from L1.
     gatingItemOut: 'tripwire_hook',         // item the player must HOLD to cross the exit into the next level
-    boss:          { type: 'cave_spider_swarm', spawn: [..], clearedFlag: 'lushBossCleared' },
     grantsItem:    'tripwire_hook',         // item this level awards (its reward pickup)
+    boss:          { type: 'cave_spider', spawn: LUSH_SWARM_SPAWNS, clearedFlag: 'lushCavernsCleared' },
     nextLevel:     'deep_dark',             // id this level's exit leads to
-    onEnter() { /* spawn boss/enemies, set music, reset per-level state */ },
+    music:         'lush',                  // music track id for this area
   },
   // deep_dark, nether_fortress, the_end ...
 };
 ```
 
+Per-level entity setup (spawn boss/enemies, reset per-level state) is **not** a registry field — it is supplied as an `onEnter` callback at the `enterLevel(id, { onEnter })` call site in [js/main.js](../js/main.js).
+
 **Field meanings, tied to the chain in WORLD_BIBLE §4:**
 
-| Field | Meaning | Enforced by |
+| Field | Meaning | Status in engine |
 |---|---|---|
-| `id` | Unique level id; equals `state.levelId` | Acceptance §5 |
-| `map`, `spawn` | The §3 array + pixel spawn | Renderer / player init |
-| `gatingItemIn` | Item required to *enter* (`null` if open). | `enterLevel(id)` refuses without it |
-| `gatingItemOut` | Item the player must *hold* to take the exit. **This is the Zelda gate.** | exit transition checks `inventory.has(gatingItemOut)` |
-| `grantsItem` | The item this level awards | Reward pickup adds it |
-| `boss` | `{ type, spawn, clearedFlag }` — defeat sets `clearedFlag` | Combat → flag in the per-level flag bag |
-| `nextLevel` | Destination id of the exit | Transition |
+| `id` | Unique level id; equals `state.levelId` | Read — `getLevel(id)`, debug hook, save format |
+| `kind` | `'hub'` / `'interior'` / `'dungeon'` | Descriptive (not branched on yet) |
+| `map`, `spawn` | The §3 array + pixel spawn | Read by `enterLevel` (renderer / player init) |
+| `boss` | `{ type, spawn, clearedFlag }` | `type` + `spawn` read when spawning enemies; `clearedFlag` is descriptive (engine uses the matching hardcoded boolean) |
+| `music` | Music track id for the area | Read by `enterLevel` |
+| `gatingItemIn` | Item required to *enter* (`null` if open) | **Declarative only** — `enterLevel(id)` does *not* yet refuse without it; entry is gated by per-level logic (e.g. the well opens once `enderPearlPickedUp`) |
+| `gatingItemOut` | Item the player must *hold* to take the exit. **The Zelda gate.** | **Declarative only** — enforced *incidentally*: e.g. shoving the L2 boulder calls `inventory.has('tripwire_hook')`, and the chasm is physically uncrossable without the hook |
+| `grantsItem` | The item this level awards | **Declarative only** — the reward pickup adds the item via its own hardcoded `inventory.add(...)` |
+| `nextLevel` | Destination id of the exit | **Declarative only** — transitions name their destination directly |
+
+> ⚠️ **Known gap.** `gatingItemIn`, `gatingItemOut`, `grantsItem`, `nextLevel`, and `boss.clearedFlag` are recorded in the registry to document the chain, but the engine does **not** read them — the gates and rewards are still per-level hardcoded checks in [js/main.js](../js/main.js). Wiring these fields into a generic `enterLevel` gate check is a planned follow-up. Until then, an author setting `gatingItemOut` does **not** automatically get a gate; they must also implement the in-world check. The acceptance criteria in §5 assert the *resulting behavior*, not the field.
 
 **Gating-chain invariant (must hold across all five levels):**
 `grantsItem(Lₙ) === gatingItemOut(Lₙ)` and `gatingItemOut(Lₙ)` unlocks the *entrance* of `Lₙ₊₁`. Concretely:
@@ -127,7 +134,7 @@ export const LEVELS = {
 
 ## 5. Acceptance criteria (what the scripted playtester asserts)
 
-The Scripted Playtester (Playwright) drives the game through the `window.__zcraft` debug hook (Plan §0.4 — **not built yet**), which must expose:
+The Scripted Playtester (Playwright) drives the game through the `window.__zcraft` debug hook ([js/engine/debugHook.js](../js/engine/debugHook.js)), which exposes:
 
 ```js
 window.__zcraft = {
@@ -192,7 +199,7 @@ Every criterion below is a runtime assertion against `state` after a scripted `i
 
 ## 6. Shared tile-ID namespace — DO NOT REUSE
 
-The current `T` enum (`js/data/tileTypes.js`) occupies IDs **0–47**. New tile IDs **start at 48** and authors must not reuse a taken integer. **Every new ID also needs a `tileProps` entry** (`{ solid, color, color2, … }`) — a missing entry makes the tile an invisible solid wall (`isSolidTile` returns `true` when `tileProps[id]` is `undefined`). The integrator resolves any cross-level collisions at merge.
+The current `T` enum (`js/data/tileTypes.js`) occupies IDs **0–60** (the base game is 0–47; L2 Lush Caverns added 48–60). New tile IDs **start at 61** and authors must not reuse a taken integer. **Every new ID also needs a `tileProps` entry** (`{ solid, color, color2, … }`) — a missing entry makes the tile an invisible solid wall (`isSolidTile` returns `true` when `tileProps[id]` is `undefined`). The integrator resolves any cross-level collisions at merge.
 
 | ID | Name | | ID | Name | | ID | Name |
 |---|---|---|---|---|---|---|---|
@@ -213,11 +220,21 @@ The current `T` enum (`js/data/tileTypes.js`) occupies IDs **0–47**. New tile 
 | 14 | `FLOWER_YELLOW` | | 30 | `DUNGEON_WALL` | | 46 | `LECTERN` |
 | 15 | `WELL` | | 31 | `DUNGEON_FLOOR` | | 47 | `DOOR_ALCH` |
 
-**Next free ID: `48`.** Suggested (non-binding) per-level reservations to prevent parallel collisions — the integrator confirms at merge:
+**L2 Lush Caverns block (48–60, merged):**
+
+| ID | Name | | ID | Name | | ID | Name |
+|---|---|---|---|---|---|---|---|
+| 48 | `MOSS_FLOOR` | | 53 | `DRIPLEAF` | | 58 | `LUSH_ROCK` |
+| 49 | `MOSS_WALL` *(solid)* | | 54 | `VINE` | | 59 | `LUSH_SECRET` |
+| 50 | `CAVE_WATER` *(solid)* | | 55 | `HOOK_ANCHOR` *(solid)* | | 60 | `MINE_HOLE` |
+| 51 | `CHASM` *(solid)* | | 56 | `CLAY` | | | |
+| 52 | `GLOW_BERRY` *(solid)* | | 57 | `LUSH_EXIT` *(reserved)* | | | |
+
+**Next free ID: `61`.** Suggested (non-binding) per-level reservations to prevent parallel collisions — the integrator confirms at merge:
 
 | Level | Reserved block |
 |---|---|
-| L2 Lush Caverns | `48–63` |
+| L2 Lush Caverns | `48–63` *(48–60 used)* |
 | L3 Deep Dark | `64–79` |
 | L4 Nether Fortress | `80–95` |
 | L5 The End | `96–111` |

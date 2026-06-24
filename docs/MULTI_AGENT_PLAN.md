@@ -1,11 +1,15 @@
 # ZCraft — Multi-Agent Level Expansion Plan (1 → 5 Levels)
 
-**Repo:** `github.com/jarretmorton/Games` · **Game:** ZCraft (Zelda × Minecraft) · **Current:** `VERSION 1.1.4`
+**Repo:** `github.com/jarretmorton/Games` · **Game:** ZCraft (Zelda × Minecraft) · **Plan written at:** `VERSION 1.1.4` · **Now at:** `VERSION 1.3.0`
 **Purpose:** A hands-on multi-agent workflow exercise — orchestrator-workers + evaluator-optimizer applied to a creative + QC domain, with deliberately minimal, high-leverage human input.
+
+> **Execution status (as of `VERSION 1.3.0`).** This plan has been carried out through **Phase 0** and the first parallel level. Done: the `LEVELS` registry + generic `enterLevel` ([js/world/levels.js](../js/world/levels.js)), the `window.__zcraft` debug hook ([js/engine/debugHook.js](../js/engine/debugHook.js)), the Playwright QC harness ([tests/](../tests/)), the shared docs ([README.md](../README.md), [WORLD_BIBLE.md](WORLD_BIBLE.md), [LEVEL_SPEC.md](LEVEL_SPEC.md)), and **L2 — The Lush Caverns** authored and merged. L3–L5 remain to be authored. §0 below is preserved as the *pre-Phase-0 baseline* the plan was grounded against; see WORLD_BIBLE §7 and LEVEL_SPEC §4 for the current state and the one remaining gap (registry gating fields are recorded but not yet enforced by the engine).
 
 ---
 
-## 0. What the repo actually is (so the plan is grounded, not assumed)
+## 0. What the repo was at plan time (pre-Phase-0 baseline)
+
+*Snapshot of the `VERSION 1.1.4` codebase the plan was grounded against. Items marked below as "no X" have since been built — see the execution-status banner above.*
 
 - Vanilla ES-module browser game. Entry point `zcraft.html`, all logic under `js/`, served by `http-server`. No build step, no tests.
 - **A "level" = a map.** Maps live in `js/world/` as 2-D arrays of tile IDs (`tileTypes.js` enum `T`), plus exported spawn coords and special-tile constants (locked doors, pressure plates, spawn points). See `dungeonMap.js` for the canonical shape.
