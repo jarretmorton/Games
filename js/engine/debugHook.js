@@ -5,7 +5,7 @@
 // driver (Playwright) can observe state and inject input. Never installed in
 // normal play, so it cannot affect a shipped game.
 //
-//   window.__zcraft.state        → { levelId, player:{x,y,hp}, inventory:[ids], flags }
+//   window.__zcraft.state        → { levelId, gameState, player:{x,y,hp}, inventory:[ids], flags }
 //   window.__zcraft.input(code, down)  → fire a synthetic keydown/keyup
 //   window.__zcraft.version      → VERSION string
 //
@@ -25,7 +25,7 @@ export function debugEnabled() {
 /**
  * Install window.__zcraft when ?debug=1 is present.
  * @param {object} api
- * @param {() => object} api.getState  returns { levelId, player:{x,y,hp}, inventory, flags }
+ * @param {() => object} api.getState  returns { levelId, gameState, player:{x,y,hp}, inventory, flags }
  * @param {string}       api.version
  */
 export function installDebugHook(api) {

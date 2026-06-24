@@ -1,6 +1,6 @@
 import { input } from '../engine/input.js';
 import { collidesWithMap } from '../engine/collision.js';
-import { drawCharacter, drawSwordSwing, drawBowDraw, drawShieldBlock } from '../rendering/sprites.js';
+import { drawCharacter, drawSwordSwing, drawBowDraw, drawShieldBlock, drawWebOnPlayer } from '../rendering/sprites.js';
 import { TILE_SIZE } from '../data/tileTypes.js';
 
 export const player = {
@@ -33,6 +33,10 @@ export const player = {
     // Hurt / invincibility
     hurtTimer: 0,
     invincibleTimer: 0,
+
+    // Web freeze (spider web attack — immobilized but still vulnerable)
+    freezeTimer: 0,
+    freezeMax: 0,
 
     // Collision box (relative to center position)
     collW: 12,
@@ -70,9 +74,22 @@ export const player = {
         this.blockTimer = 0;
         this.bowDrawTimer = 0;
         this.bowReleased = false;
+        this.freezeTimer = 0;
+        this.freezeMax = 0;
     },
 
     update(map, entities) {
+        // Web freeze: fully immobilized for the duration. We still tick the
+        // invincibility timer so melee i-frames keep working (the player can be
+        // hurt while frozen). Blocks all input until it runs out.
+        if (this.freezeTimer > 0) {
+            this.freezeTimer--;
+            if (this.invincibleTimer > 0) this.invincibleTimer--;
+            this.state = 'frozen';
+            if (this.freezeTimer === 0) this.state = 'idle';
+            return;
+        }
+
         // Invincibility countdown
         if (this.invincibleTimer > 0) this.invincibleTimer--;
         if (this.hurtTimer > 0) {
@@ -217,6 +234,19 @@ export const player = {
         return true;
     },
 
+    // Stick the player in a spider web: immobilized for `duration` frames.
+    // No re-stick while already webbed, so the swarm can't chain-freeze the
+    // player into a permanent lock.
+    freeze(duration) {
+        if (this.freezeTimer > 0) return false;
+        this.freezeTimer = duration;
+        this.freezeMax = duration;
+        this.state = 'frozen';
+        this.blocking = false;
+        this.blockTimer = 0;
+        return true;
+    },
+
     takeDamage(amount) {
         if (this.invincibleTimer > 0) return false;
 
@@ -281,6 +311,12 @@ export const player = {
 
     render(ctx) {
         if (!this.palette) return;
+
+        // Web overlay (drawn before the invincibility-flash early-return so the
+        // web stays visible the whole time you're frozen). Fades as it melts.
+        if (this.freezeTimer > 0) {
+            drawWebOnPlayer(ctx, this.x, this.y, this.freezeTimer / this.freezeMax);
+        }
 
         // Flash when invincible
         if (this.invincibleTimer > 0 && Math.floor(this.invincibleTimer / 3) % 2 === 0) {

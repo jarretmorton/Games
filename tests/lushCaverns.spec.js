@@ -135,6 +135,50 @@ test.describe('L2 — Lush Caverns', () => {
         expect((await readState(page)).levelId).toBe('mine');
     });
 
+    test('cave spiders web-freeze the player for ~2 seconds', async ({ page }) => {
+        test.setTimeout(120_000);
+        await bootDebug(page);
+        await reachVillage(page);
+        await warpToLush(page);
+
+        // Linger in/near the spider arena until a web connects and freezes us.
+        // (The freeze gates input — proven separately — so we just detect it.)
+        let froze = false;
+        for (let i = 0; i < 120 && !froze; i++) {
+            const s = await readState(page);
+            if (s.player.frozen) { froze = true; break; }
+            if (s.player.hp <= 0) { await tap(page, 'Space'); continue; } // respawn if downed
+            await hold(page, 'ArrowUp', 4); await release(page, 'ArrowUp'); // press into the swarm
+            await page.waitForTimeout(150);                                 // hold position so a web lands
+            if ((await readState(page)).player.frozen) froze = true;
+        }
+        expect(froze).toBe(true);
+    });
+
+    test('secret potato pet (Spud) is findable in the lower grotto', async ({ page }) => {
+        test.setTimeout(120_000);
+        await bootDebug(page);
+        await reachVillage(page);
+        await warpToLush(page);
+        await clearSwarm(page);     // clear the swarm so exploration is unobstructed
+        await clearDialogue(page);
+
+        let s = await readState(page);
+        expect(s.flags.lushPetFound).toBe(false);
+
+        // Spud hides at col 2, row 19 (bottom-left of the entry grotto). Walk to
+        // the open lower row first, then west to the corner, then onto the pet.
+        for (let i = 0; i < 20 && !(await readState(page)).flags.lushPetFound; i++) {
+            await centerRow(page, 20);
+            await centerColumn(page, 2);
+            await centerRow(page, 19);
+            await clearDialogue(page);
+        }
+        s = await readState(page);
+        expect(s.flags.lushPetFound).toBe(true);   // walking onto Spud sets the flag
+        expect(s.levelId).toBe('lush_caverns');
+    });
+
     test('gate-out is honored — without the hook the chasm is uncrossable (G4)', async ({ page }) => {
         test.setTimeout(120_000);
         await bootDebug(page);

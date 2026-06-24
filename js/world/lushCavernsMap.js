@@ -128,3 +128,8 @@ export const LUSH_MINE_ENTRY_Y = 2 * 32 + 16;
 // Hidden glow-berry stash on the far-right of the north shelf (the L2 secret).
 export const LUSH_SECRET_ROW = 2;
 export const LUSH_SECRET_COL = 21;
+
+// Secret potato pet ("Spud") tucked in the bottom-left corner of the lower
+// entry grotto — off the main path, so it's a real find. Pixel center.
+export const LUSH_PET_X = 2 * 32 + 16;
+export const LUSH_PET_Y = 19 * 32 + 16;

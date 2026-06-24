@@ -1,15 +1,13 @@
 # ZCraft — Multi-Agent Level Expansion Plan (1 → 5 Levels)
 
-**Repo:** `github.com/jarretmorton/Games` · **Game:** ZCraft (Zelda × Minecraft) · **Plan written at:** `VERSION 1.1.4` · **Now at:** `VERSION 1.3.0`
+**Repo:** `github.com/jarretmorton/Games` · **Game:** ZCraft (Zelda × Minecraft) · **Written against:** `VERSION 1.1.4`
 **Purpose:** A hands-on multi-agent workflow exercise — orchestrator-workers + evaluator-optimizer applied to a creative + QC domain, with deliberately minimal, high-leverage human input.
 
-> **Execution status (as of `VERSION 1.3.0`).** This plan has been carried out through **Phase 0** and the first parallel level. Done: the `LEVELS` registry + generic `enterLevel` ([js/world/levels.js](../js/world/levels.js)), the `window.__zcraft` debug hook ([js/engine/debugHook.js](../js/engine/debugHook.js)), the Playwright QC harness ([tests/](../tests/)), the shared docs ([README.md](../README.md), [WORLD_BIBLE.md](WORLD_BIBLE.md), [LEVEL_SPEC.md](LEVEL_SPEC.md)), and **L2 — The Lush Caverns** authored and merged. L3–L5 remain to be authored. §0 below is preserved as the *pre-Phase-0 baseline* the plan was grounded against; see WORLD_BIBLE §7 and LEVEL_SPEC §4 for the current state and the one remaining gap (registry gating fields are recorded but not yet enforced by the engine).
+> **Status update (`VERSION 1.4.0`):** Gates 1–2 passed and Phase 0 shipped — the README, [WORLD_BIBLE.md](WORLD_BIBLE.md), [LEVEL_SPEC.md](LEVEL_SPEC.md), the `LEVELS` registry (`js/world/levels.js`), the `?debug=1` hook (`js/engine/debugHook.js`), the Playwright harness (`tests/`), and the `.claude/agents/` definitions. **L2 (Lush Caverns) is authored, play-tested, and merged** (Gate 3); L3–L5 remain to be built per Phases 2–4. Notes for readers of the original text below: §0 describes the repo *as it was at `1.1.4`* and is kept as the historical baseline (`main.js` is now ~3,300 lines and the registry exists); the planned `docs/ARCHITECTURE.md` was folded into the README's "Project structure" section + LEVEL_SPEC; `Plan for a game.docx` became the plain-text `Initial_prompt`.
 
 ---
 
-## 0. What the repo was at plan time (pre-Phase-0 baseline)
-
-*Snapshot of the `VERSION 1.1.4` codebase the plan was grounded against. Items marked below as "no X" have since been built — see the execution-status banner above.*
+## 0. What the repo actually is (so the plan is grounded, not assumed)
 
 - Vanilla ES-module browser game. Entry point `zcraft.html`, all logic under `js/`, served by `http-server`. No build step, no tests.
 - **A "level" = a map.** Maps live in `js/world/` as 2-D arrays of tile IDs (`tileTypes.js` enum `T`), plus exported spawn coords and special-tile constants (locked doors, pressure plates, spawn points). See `dungeonMap.js` for the canonical shape.
@@ -180,7 +178,7 @@ Integrator merges approved branches **one at a time**, runs `npm test` (full reg
 
 ## 5. How this fits the curriculum
 
-This is a self-contained reps exercise on the two patterns you're already documenting in Spike SysML (orchestrator-workers + evaluator-optimizer), in a domain where the evaluator is concrete and visible — *the game plays or it doesn't*. New skills you'd actually exercise hands-on: Claude Code **subagents** and `.claude/agents/` config, **git worktrees** for parallel sessions, a **Playwright** game-driving harness, and the design discipline of a **shared-blackboard topology** with serial integration. Optional stretch that maps straight onto the "interaction topology" glossary entry: re-run Phase 3 as an **Agent Team** (peer messaging) and compare cost/quality against the subagent version. It's off the master-plan critical path — but it's the cleanest "use a multi-agent workflow to do real work with only necessary-and-sufficient human input" demonstration you could point a hiring manager at, and it's genuinely fun.
+This is a self-contained reps exercise on the two patterns you're already documenting in Spike SysML (orchestrator-workers + evaluator-optimizer), in a domain where the evaluator is concrete and visible — *the game plays or it doesn't*. New skills you'd actually exercise hands-on: Claude Code **subagents** and `.claude/agents/` config, **git worktrees** for parallel sessions, a **Playwright** game-driving harness, and the design discipline of a **shared-blackboard topology** with serial integration. Optional stretch that maps straight onto the "interaction topology" glossary entry: re-run Phase 3 as an **Agent Team** (peer messaging) and compare cost/quality against the subagent version. It's off the master-plan critical path — but it's the cleanest "use a multi-agent workflow to do real work with only necessary-and-sufficient human input" demonstration in the whole plan, and it's genuinely fun.
 
 ---
 
