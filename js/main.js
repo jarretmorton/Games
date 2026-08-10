@@ -31,7 +31,7 @@ import { saveSystem } from './systems/saveSystem.js';
 import { LEVELS, getLevel, levelIdFromFlags } from './world/levels.js';
 import { installDebugHook, debugEnabled } from './engine/debugHook.js';
 
-export const VERSION = '1.4.0';
+export const VERSION = '1.4.1';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;

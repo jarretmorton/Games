@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>ZCraft</title>
+
+    <!--
+        App icon: pixel art on the same 32x32 grid the game draws its tiles on,
+        using the title screen's palette and its FONT['Z'] glyph. icon.svg is
+        the master; favicon-32.png is a fallback for browsers that ignore SVG
+        favicons, and apple-touch-icon.png is a separate file because iOS does
+        not use SVG favicons for Add to Home Screen.
+
+        Without these, a page on github.io with no icon of its own falls back
+        to whatever icon the browser has cached for the origin — which is how
+        this game ended up showing a different app's icon in Edge's tab view.
+    -->
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <meta name="theme-color" content="#1a1a2e">
+
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
