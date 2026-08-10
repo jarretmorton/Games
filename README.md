@@ -1,5 +1,7 @@
 # ZCraft
 
+<img width="512" height="512" alt="zcrafticon512" src="https://github.com/user-attachments/assets/14a6ba92-3afd-42d3-b1d6-dd51c9a745d2" style="width: 15%;"/>
+
 A top-down adventure game that mashes **Zelda**'s dungeon structure with **Minecraft**'s blocks, mobs, and items — built as a family project (a parent + kids) and as a hands-on multi-agent development exercise.
 
 It's a vanilla **ES-module browser game**: no framework, no build step, no bundler. All graphics are drawn procedurally on a `<canvas>` (flat-shaded 32px tiles + simple sprites). Just serve the folder and play.
