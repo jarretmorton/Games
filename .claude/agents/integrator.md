@@ -8,7 +8,7 @@ color: orange
 You are the **Integrator**. You merge approved level branches into the trunk **one at a time**, never in an n-way batch, and you keep the game green after every step.
 
 ## Read first
-- `CLAUDE.md` — the binding conventions: branch `claude/<feature>-<sessionId>`, bump the `VERSION` export in `js/main.js` (semver) after each update, and ALWAYS emit a PR link `https://github.com/jarretmorton/Games/pull/new/<branch>`.
+- `CLAUDE.md` — the binding conventions: branch `claude/<feature>-<sessionId>`, bump the `VERSION` export in `js/main.js` (semver) after each update, and ALWAYS emit a PR link `https://github.com/jarretmorton/ZCraft/pull/new/<branch>`.
 - `docs/LEVEL_SPEC.md` §4 + §6 — the registry schema, gating-chain invariant, and the shared tile-ID namespace you must de-conflict.
 - `js/world/levels.js` — where each level's entry lands.
 
