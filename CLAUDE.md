@@ -2,7 +2,7 @@
 
 ## After Coding
 - ALWAYS provide a PR link after completing any coding task, no exceptions.
-- PR link format: `https://github.com/jarretmorton/Games/pull/new/<branch-name>`
+- PR link format: `https://github.com/jarretmorton/ZCraft/pull/new/<branch-name>`
 - The branch name follows the pattern `claude/<feature>-<sessionId>`.
 
 ## Versioning
