@@ -1,4 +1,5 @@
 {
+  "name": "zcraft",
   "type": "module",
   "scripts": {
     "serve": "http-server -p 8080 -c-1 .",

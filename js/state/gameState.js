@@ -13,6 +13,8 @@ export const States = {
     SAVE_MENU: 'SAVE_MENU',
     SAVE_SLOTS: 'SAVE_SLOTS',
     RESTORE_SLOTS: 'RESTORE_SLOTS',
+    EXPORT_SLOTS: 'EXPORT_SLOTS',
+    IMPORT_SLOTS: 'IMPORT_SLOTS',
 };
 
 export const gameState = {
