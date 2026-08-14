@@ -31,7 +31,7 @@ import { saveSystem } from './systems/saveSystem.js';
 import { LEVELS, getLevel, levelIdFromFlags } from './world/levels.js';
 import { installDebugHook, debugEnabled } from './engine/debugHook.js';
 
-export const VERSION = '1.4.2';
+export const VERSION = '1.5.0';
 
 const TICK_RATE = 1000 / 60;
 let lastTime = 0;
@@ -118,12 +118,18 @@ let nameEntryTyping = false;
 let nameEntryText = '';
 let nameEntryEraseSlot = -1; // >=0 when awaiting erase confirmation
 
-// Save menu state (pause → save/restore/cancel)
-let saveMenuOption = 0; // 0=Save, 1=Restore, 2=Cancel
+// Save menu state (pause → save/restore/export/import/cancel)
+const SAVE_MENU_OPTIONS = ['Save Game', 'Restore', 'Export Code', 'Import Code', 'Cancel'];
+let saveMenuOption = 0;
 
 // Save/restore slot selection
 let selectedSlot = 0;
-let saveSlotContext = 'save'; // 'save' | 'restore'
+let saveSlotContext = 'save'; // 'save' | 'restore' | 'export' | 'import'
+
+// Transient feedback line on the slot picker (export/import results)
+let codeMessage = '';
+let codeMessageTimer = 0;
+const CODE_MESSAGE_DURATION = 180; // frames (~3s at 60fps)
 
 // On-screen keyboard flash feedback
 let kbFlashKey = null;
@@ -229,6 +235,8 @@ function currentFlags() {
 function init() {
     ctx = initRenderer();
     initCanvasInput();
+    // Fire-and-forget: keeps saves from being evicted by Safari's 7-day cap.
+    saveSystem.requestPersistence();
     installDebugHook({
         version: VERSION,
         getState: () => ({
@@ -421,6 +429,14 @@ function update() {
 
         case States.RESTORE_SLOTS:
             updateRestoreSlots();
+            break;
+
+        case States.EXPORT_SLOTS:
+            updateExportSlots();
+            break;
+
+        case States.IMPORT_SLOTS:
+            updateImportSlots();
             break;
     }
 }
@@ -2376,21 +2392,26 @@ function updateNameEntry() {
 }
 
 function updateSaveMenu() {
-    if (input.upPressed) saveMenuOption = (saveMenuOption - 1 + 3) % 3;
-    if (input.downPressed) saveMenuOption = (saveMenuOption + 1) % 3;
+    const n = SAVE_MENU_OPTIONS.length;
+    if (input.upPressed) saveMenuOption = (saveMenuOption - 1 + n) % n;
+    if (input.downPressed) saveMenuOption = (saveMenuOption + 1) % n;
     if (input.action || input.start) {
+        selectedSlot = 0;
+        codeMessage = '';
+        codeMessageTimer = 0;
         if (saveMenuOption === 0) {
-            // Save
-            selectedSlot = 0;
             saveSlotContext = 'save';
             gameState.change(States.SAVE_SLOTS);
         } else if (saveMenuOption === 1) {
-            // Restore
-            selectedSlot = 0;
             saveSlotContext = 'restore';
             gameState.change(States.RESTORE_SLOTS);
+        } else if (saveMenuOption === 2) {
+            saveSlotContext = 'export';
+            gameState.change(States.EXPORT_SLOTS);
+        } else if (saveMenuOption === 3) {
+            saveSlotContext = 'import';
+            gameState.change(States.IMPORT_SLOTS);
         } else {
-            // Cancel
             gameState.change(States.PLAYING);
         }
     }
@@ -2425,6 +2446,62 @@ function updateRestoreSlots() {
     }
 }
 
+function setCodeMessage(text) {
+    codeMessage = text;
+    codeMessageTimer = CODE_MESSAGE_DURATION;
+}
+
+function tickCodeMessage() {
+    if (codeMessageTimer > 0 && --codeMessageTimer === 0) codeMessage = '';
+}
+
+function updateExportSlots() {
+    tickCodeMessage();
+    if (input.upPressed) selectedSlot = (selectedSlot - 1 + 3) % 3;
+    if (input.downPressed) selectedSlot = (selectedSlot + 1) % 3;
+    if (input.action || input.start) {
+        const code = saveSystem.exportSlot(selectedSlot);
+        if (!code) {
+            setCodeMessage('Slot is empty - nothing to export.');
+        } else {
+            // Best-effort clipboard copy. Safari only honours this inside the
+            // user gesture itself, and we are a frame later in rAF, so treat
+            // the prompt below as the real delivery mechanism, not a fallback.
+            try { navigator.clipboard?.writeText(code).catch(() => {}); } catch { /* prompt covers it */ }
+            window.prompt('Save code for SLOT ' + (selectedSlot + 1) + ' - copy this:', code);
+            input.releaseAll();
+            setCodeMessage('Copy it, then Import on the other one.');
+        }
+    }
+    if (input.cancel) {
+        codeMessage = '';
+        gameState.change(States.SAVE_MENU);
+    }
+}
+
+function updateImportSlots() {
+    tickCodeMessage();
+    if (input.upPressed) selectedSlot = (selectedSlot - 1 + 3) % 3;
+    if (input.downPressed) selectedSlot = (selectedSlot + 1) % 3;
+    if (input.action || input.start) {
+        const existing = saveSystem.getSlot(selectedSlot);
+        const warning = existing ? ' (overwrites ' + existing.name + ')' : '';
+        const code = window.prompt('Paste save code into SLOT ' + (selectedSlot + 1) + warning + ':');
+        input.releaseAll();
+        if (code === null) {
+            // Cancelled the prompt; leave the slot alone.
+        } else if (saveSystem.importCode(selectedSlot, code)) {
+            setCodeMessage('Imported! Use Restore to load it.');
+        } else {
+            setCodeMessage('That code was not valid.');
+        }
+    }
+    if (input.cancel) {
+        codeMessage = '';
+        gameState.change(States.SAVE_MENU);
+    }
+}
+
 // ── RENDER ──
 
 function render() {
@@ -2445,6 +2522,14 @@ function render() {
         case States.RESTORE_SLOTS:
             renderCurrentScene();
             renderRestoreSlots();
+            break;
+        case States.EXPORT_SLOTS:
+            renderCurrentScene();
+            renderExportSlots();
+            break;
+        case States.IMPORT_SLOTS:
+            renderCurrentScene();
+            renderImportSlots();
             break;
         case States.PLAYING:
         case States.DIALOGUE:
@@ -3237,7 +3322,7 @@ function renderOnscreenKeyboard() {
 }
 
 function renderSaveMenu() {
-    const menuW = 110, menuH = 70;
+    const menuW = 110, menuH = 108;
     const menuX = VIRTUAL_WIDTH / 2 - menuW / 2;
     const menuY = VIRTUAL_HEIGHT / 2 - menuH / 2;
 
@@ -3253,7 +3338,7 @@ function renderSaveMenu() {
     ctx.fillStyle = '#fff';
     drawSmallText(ctx, 'GAME MENU', menuX + menuW / 2 - 27, menuY + 7);
 
-    const options = ['Save Game', 'Restore', 'Cancel'];
+    const options = SAVE_MENU_OPTIONS;
     for (let i = 0; i < options.length; i++) {
         const y = menuY + 22 + i * 14;
         if (i === saveMenuOption) {
@@ -3273,15 +3358,25 @@ function renderSaveMenu() {
 
 function renderSaveSlots() {
     const slots = saveSystem.getAllSlots();
-    renderSlotPicker(slots, 'Save to Slot', false);
+    renderSlotPicker(slots, 'Save to Slot', false, 'Up/Down:Select  Enter:Save  X:Back');
 }
 
 function renderRestoreSlots() {
     const slots = saveSystem.getAllSlots();
-    renderSlotPicker(slots, 'Restore from Slot', true);
+    renderSlotPicker(slots, 'Restore from Slot', true, 'Up/Down:Select  Enter:Load  X:Back');
 }
 
-function renderSlotPicker(slots, title, restoreMode) {
+function renderExportSlots() {
+    const slots = saveSystem.getAllSlots();
+    renderSlotPicker(slots, 'Export Save Code', true, 'Up/Down  Enter:Get Code  X:Back');
+}
+
+function renderImportSlots() {
+    const slots = saveSystem.getAllSlots();
+    renderSlotPicker(slots, 'Import Save Code', false, 'Up/Down  Enter:Paste  X:Back');
+}
+
+function renderSlotPicker(slots, title, restoreMode, footer) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
     ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
@@ -3332,12 +3427,12 @@ function renderSlotPicker(slots, title, restoreMode) {
         }
     }
 
-    if (restoreMode) {
-        ctx.fillStyle = '#555';
-        drawSmallText(ctx, 'Up/Down:Select  Enter:Load  X:Back', boxX + 6, boxY + boxH - 12);
+    if (codeMessage) {
+        ctx.fillStyle = '#ffcc00';
+        drawSmallText(ctx, codeMessage, boxX + 6, boxY + boxH - 12);
     } else {
         ctx.fillStyle = '#555';
-        drawSmallText(ctx, 'Up/Down:Select  Enter:Save  X:Back', boxX + 6, boxY + boxH - 12);
+        drawSmallText(ctx, footer, boxX + 6, boxY + boxH - 12);
     }
 }
 

@@ -169,5 +169,12 @@ export const input = {
     clear() {
         for (const key in justPressed) delete justPressed[key];
         for (const key in justReleased) delete justReleased[key];
+    },
+
+    // A modal prompt() can swallow the keyup for whatever key opened it,
+    // leaving that key stuck down forever. Drop all held state afterwards.
+    releaseAll() {
+        for (const key in keys) delete keys[key];
+        this.clear();
     }
 };
